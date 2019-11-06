@@ -14,6 +14,12 @@ object Types {
   implicit class StringType(value  : String) {
     def fromHexToBytes() : Array[Byte] =
       DatatypeConverter.parseHexBinary(value)
+
+    def fromHexToString() : String = new String(value.fromHexToBytes())
+
+    def hs : String = fromHexToString()
+
+    def hb : Array[Byte] = fromHexToBytes()
   }
 
   implicit class ByteArrayType(value: Array[Byte]) {
@@ -42,6 +48,8 @@ object Types {
     }
 
     def toHexString(): String = value.map(v => "%02x".format(v)).mkString
+
+    def bh : String = toHexString()
 
     def padRight(size: Int): Array[Byte] = {
       val result = byteArray(value.length + size)

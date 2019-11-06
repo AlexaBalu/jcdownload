@@ -4,6 +4,7 @@ import Types._
 
 case class ProgressBar(max: Long) {
 
+  var done = false
   var current: Long = 0
   var lastRatingTimestamp: Long = 0
   var lastRatingValue: Long = 0
@@ -47,16 +48,19 @@ case class ProgressBar(max: Long) {
   }
 
   protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size : Int = 10): Unit = {
-    val scale = size / 10.0
-    val progress = (value * scale / 10.0).toInt
-    val status = value.toInt
-    print("% 4d%% [%s%s] %s of %s at %s/s [%s<%s]       ".format(status, "#" * progress,
-      " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
-      rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime()))
-    if (status == 100)
-      println()
-    else
-      print("\r")
+    if (!done) {
+      val scale = size / 10.0
+      val progress = (value * scale / 10.0).toInt
+      val status = value.toInt
+      print("% 4d%% [%s%s] %s of %s at %s/s [%s<%s]       ".format(status, "#" * progress,
+        " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
+        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime()))
+      if (status == 100) {
+        done = true
+        println()
+      } else
+        print("\r")
+    }
   }
 
 }

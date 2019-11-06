@@ -9,6 +9,8 @@ libraryDependencies += "commons-io" % "commons-io" % "2.6"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
+libraryDependencies += "com.google.code.gson" % "gson" % "2.8.6"
+
 assemblyJarName in assembly := "jcdownload.jar"
 
 //test in assembly := {}

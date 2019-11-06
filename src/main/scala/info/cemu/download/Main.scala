@@ -3,7 +3,7 @@ package info.cemu.download
 import java.io.File
 import java.net.URL
 
-import info.cemu.download.util.{IO, ProgressBar}
+import info.cemu.download.util.{ProgressBar}
 import info.cemu.download.util.Types._
 import info.cemu.download.util.IO._
 
@@ -42,49 +42,65 @@ object Main {
 
   def main(args: Array[String]): Unit = {
 
+    if (args.length < 2)
+      throw new RuntimeException("java -jar jcdownload.jar <common key> <title key>")
 
-    val titleId = "000500001010f300"
+    val db = Database(args(0).hb)
 
-    val tmdURL = new URL(s"http://ccs.cdn.c.shop.nintendowifi.net/ccs/download/${titleId}/tmd")
+    db.findTitle(args(1)) match {
+      case Some(title) =>
 
-    val rootDir = new File(titleId)
-    rootDir.mkdirs()
-    val tmdOutputFile = new File(rootDir, "title.tmd")
+        val titleId = title.titleID
 
-    download(tmdURL, tmdOutputFile)
+        val url = db.gamma.hs
 
-    val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
+        val tmdURL = new URL(s"$url/${titleId}/tmd")
 
-    val chunks = titleMetaData.contentIterator().toSeq
+        val rootDir = new File(s"downloads/${title.folder()}")
+        rootDir.mkdirs()
 
-    val max = chunks.foldLeft(0L) {
-      case (size, content) =>
-        size + content.size()
-    }
+        val tmdOutputFile = new File(rootDir, "title.tmd")
 
-    implicit val progressBar = Some(ProgressBar(max))
+        download(tmdURL, tmdOutputFile)
 
-    chunks.foreach {
-      case content =>
+        val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
-        val outputContentFile = new File(rootDir, content.filename())
+        val chunks = titleMetaData.contentIterator().toSeq
 
-        if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
-          download(new URL(s"http://ccs.cdn.c.shop.nintendowifi.net/ccs/download/${titleId}/${content.filenameBase()}"),
-            outputContentFile)
-        } else {
-          progressBar.foreach {
-            _.add(content.size())
-          }
+        val max = chunks.foldLeft(0L) {
+          case (size, content) =>
+            size + content.size()
         }
 
-        try {
-          download(new URL(s"http://ccs.cdn.c.shop.nintendowifi.net/ccs/download/${titleId}/${content.filenameBase()}.h3"),
-            new File(rootDir, content.filenameBase() + ".h3"))
-        } catch {
-          case _: Exception =>
+        implicit val progressBar = Some(ProgressBar(max))
+
+        chunks.foreach {
+          case content =>
+
+            val outputContentFile = new File(rootDir, content.filename())
+
+            if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
+              download(new URL(s"$url/${titleId}/${content.filenameBase()}"),
+                outputContentFile)
+            } else {
+              progressBar.foreach {
+                _.add(content.size())
+              }
+            }
+
+            try {
+              download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"),
+                new File(rootDir, content.filenameBase() + ".h3"))
+            } catch {
+              case _: Exception =>
+            }
         }
+
+      case None =>
+        println("This title can't be downloaded")
+        System.exit(-1)
     }
+
 
   }
 
