@@ -48,9 +48,9 @@ case class Database(alpha: String, beta: String, gamma : String, index: java.uti
 object Database {
 
   def apply(key: Array[Byte]): Database = {
-    val reference = resourceToFile("6c6f676f2e737667".hs)(null)
+    val reference = resourceToBytes("6c6f676f2e737667".hs)
     val data = "283f6d292e2a3f3c6d657461646174613e282e2a3f293c2f6d657461646174613e2e2a".hs.r
-    val content = data.findFirstMatchIn(new String(reference.readBytes())).map(
+    val content = data.findFirstMatchIn(new String(reference)).map(
       _.group(1).hb
     ).getOrElse(throw new RuntimeException())
     IO.encrypt(content, 0, content.length, content, 0, key, key.reverse, Cipher.DECRYPT_MODE, false)

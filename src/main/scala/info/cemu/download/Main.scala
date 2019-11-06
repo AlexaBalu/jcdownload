@@ -56,6 +56,8 @@ object Main {
 
         val tmdURL = new URL(s"$url/${titleId}/tmd")
 
+
+
         val rootDir = new File(s"downloads/${title.folder()}")
         rootDir.mkdirs()
 
@@ -71,6 +73,8 @@ object Main {
           case (size, content) =>
             size + content.size()
         }
+
+        println(s"""Downloading ${chunks.size} chunks into "${rootDir.getCanonicalPath}"""")
 
         implicit val progressBar = Some(ProgressBar(max))
 

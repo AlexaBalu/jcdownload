@@ -14,10 +14,10 @@ import com.google.gson.Gson
 
 object IO {
 
-  implicit class URLExtension(url : URL) {
+  implicit class URLExtension(url: URL) {
 
 
-    def inputStream() : InputStream =
+    def inputStream(): InputStream =
       new BufferedInputStream(url.openStream())
 
   }
@@ -63,6 +63,23 @@ object IO {
 
   }
 
+  def copy(in: InputStream, out: OutputStream): Unit = {
+    val buffer = byteArray(1024 * 8)
+    var i = 0
+    while ( {
+      i = in.read(buffer, 0, buffer.length);
+      i != -1
+    }) {
+      out.write(buffer, 0, i)
+    }
+  }
+
+  def resourceToBytes(name: String): Array[Byte] = {
+    val out = new ByteArrayOutputStream()
+    copy(getClass.getClassLoader.getResourceAsStream(name), out)
+    out.toByteArray
+  }
+
   def resourceToFile(name: String)(implicit rootPath: File): File = {
     val result = getClass.getClassLoader.getResource(name)
     if (result == null)
@@ -80,7 +97,7 @@ object IO {
   def SHA256(input: Array[Byte]): Array[Byte] =
     MessageDigest.getInstance("SHA-256").digest(input)
 
-  def encrypt(input: Array[Byte], inputOffset: Int, inputLength: Int, output: Array[Byte], outputOffset: Int, key: Array[Byte], iv: Array[Byte], mode: Int, fixed : Boolean = true): Int = {
+  def encrypt(input: Array[Byte], inputOffset: Int, inputLength: Int, output: Array[Byte], outputOffset: Int, key: Array[Byte], iv: Array[Byte], mode: Int, fixed: Boolean = true): Int = {
     val initVector = new IvParameterSpec(iv)
     val secretKeySpec = new SecretKeySpec(key, "AES")
     val cipher = Cipher.getInstance(if (fixed) "AES/CBC/NoPadding" else "AES/CTR/NoPadding")
@@ -91,35 +108,29 @@ object IO {
   def decrypt(inputOutput: Array[Byte], key: Array[Byte], iv: Array[Byte]): Int =
     encrypt(inputOutput, 0, inputOutput.length, inputOutput, 0, key, iv, Cipher.DECRYPT_MODE)
 
-  def deserialize[T](input : Array[Byte], clazz : Class[T]) : T = {
+  def deserialize[T](input: Array[Byte], clazz: Class[T]): T = {
     val in = new ByteArrayInputStream(input)
     val reader = new InputStreamReader(in, "UTF-8")
     new Gson().fromJson(reader, clazz)
   }
 
-  def serialize(input : Any) : String =
+  def serialize(input: Any): String =
     new Gson().toJson(input)
 
-  def compress(input : Array[Byte]) : Array[Byte] = {
+  def compress(input: Array[Byte]): Array[Byte] = {
     val out = new ByteArrayOutputStream()
-    val zip = new DeflaterOutputStream(out)
-    zip.write(input, 0, input.length)
-    zip.close()
+    val co = new DeflaterOutputStream(out)
+    co.write(input, 0, input.length)
+    co.close()
     out.toByteArray
   }
 
-  def uncompress(input : Array[Byte]) : Array[Byte] = {
+  def uncompress(input: Array[Byte]): Array[Byte] = {
     val out = new ByteArrayOutputStream()
     val in = new ByteArrayInputStream(input)
-    val zip = new InflaterOutputStream(out)
-    val buffer = byteArray(1024 * 8)
-    var i = 0
-    while({
-      i = in.read(buffer, 0, buffer.length); i != -1
-    }) {
-      zip.write(buffer, 0, i)
-    }
-    zip.close()
+    val de = new InflaterOutputStream(out)
+    copy(in, de)
+    de.close()
     out.toByteArray
   }
 }
