@@ -35,13 +35,8 @@ object Main {
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
-        if (title.isPatch()) {
-          val dlc = new File(rootDir, "title.tik")
-          dlc.download(new URL(s"$url/${titleId}/cetk"))
-          val ticket = TitleTicket(dlc)
-          TitleTicket.patchDLC(ticket, titleMetaData)
-          dlc.writeBytes(ticket.payload)
-        }
+        if (title.isPatch())
+          new File(rootDir, "title.tik").download(new URL(s"$url/${titleId}/cetk"))
         else
           new File(rootDir, "title.tik").writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
 

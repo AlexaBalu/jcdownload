@@ -11,26 +11,27 @@ object Types {
 
   def byteArrayOf(elements: Int*): Array[Byte] = elements.map(_.toByte).toArray[Byte]
 
-  implicit class StringType(value  : String) {
-    def fromHexToBytes() : Array[Byte] =
+  implicit class StringType(value: String) {
+    def fromHexToBytes(): Array[Byte] =
       DatatypeConverter.parseHexBinary(value)
 
-    def fromHexToString() : String = new String(value.fromHexToBytes())
+    def fromHexToString(): String = new String(value.fromHexToBytes())
 
-    def hs : String = fromHexToString()
+    def hs: String = fromHexToString()
 
-    def hb : Array[Byte] = fromHexToBytes()
+    def hb: Array[Byte] = fromHexToBytes()
   }
 
   implicit class ByteArrayType(value: Array[Byte]) {
 
-    def fill(newValue: Byte): Unit = {
+    def fill(newValue: Byte): Array[Byte] = {
       var i = 0
       val len = value.length
       while (i < len) {
         value(i) = newValue
         i += 1
       }
+      value
     }
 
     def cloned(): Array[Byte] =
@@ -49,7 +50,7 @@ object Types {
 
     def toHexString(): String = value.map(v => "%02x".format(v)).mkString
 
-    def bh : String = toHexString()
+    def bh: String = toHexString()
 
     def padRight(size: Int): Array[Byte] = {
       val result = byteArray(value.length + size)
@@ -80,10 +81,10 @@ object Types {
 
   }
 
-  implicit class Units(value : Long) {
+  implicit class Units(value: Long) {
 
 
-    def toDisplaySize(si : Boolean = true) : String = {
+    def toDisplaySize(si: Boolean = true): String = {
       val unit = if (si) 1000 else 1024
       if (value < unit)
         value + " B"
@@ -94,7 +95,7 @@ object Types {
       }
     }
 
-    def toDisplayTime() : String = {
+    def toDisplayTime(): String = {
       val second = (value / 1000) % 60
       val minute = (value / (1000 * 60)) % 60
       val hour = (value / (1000 * 60 * 60)) % 24
