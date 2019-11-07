@@ -12,8 +12,6 @@ case class Content(payload : Array[Byte], offset : Int) extends Payload(payload,
 
   def sha2() = getBytes( 0x10, 0x14)
 
-  def filename() = "%08x.app".format(id())
-
   def filenameBase() = "%08x".format(id())
 
 }

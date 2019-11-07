@@ -9,7 +9,7 @@ import FEntry._
 import info.cemu.download.util.ProgressBar
 
 case class FEntry(payload: Array[Byte], offset: Int,
-                  nameOffset: Int, parent: FST, fullPath: String)(implicit rootPath : File) extends Payload(payload, offset) {
+                  nameOffset: Int, parent: FST, fullPath: String)(implicit rootPath: File) extends Payload(payload, offset) {
 
   def getName(): String = {
     val names = new Payload(payload, nameOffset)
@@ -30,7 +30,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFlags(): Short = getShort(0x0C)
 
-  def getContainer(): File = resourceToFile(parent.tmd.content(getContentID()).filename())
+  def getContainer(): File = resourceToFile(parent.tmd.content(getContentID()).filenameBase() + ".app")
 
   def getType(): Int = ((getInt(0) & 0xFF000000) >>> 24)
 
@@ -50,7 +50,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFileLength(): Int = getInt(0x08)
 
-  def extractFile()(implicit progress : ProgressBar): Unit = {
+  def extractFile()(implicit progress: ProgressBar): Unit = {
 
     if (isHashed()) {
       extractHashedFile()
@@ -107,7 +107,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
     }
   }
 
-  protected def extractHashedFile()(implicit progress : ProgressBar): Unit = {
+  protected def extractHashedFile()(implicit progress: ProgressBar): Unit = {
 
     val HASH_BLOCK_SIZE = 0xFC00
     val SHA_DIGEST_LENGTH = 0x14

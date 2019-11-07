@@ -11,9 +11,9 @@ import scala.jdk.CollectionConverters._
 
 case class Title(titleID: String, titleHash: String, name: String, region: String, ticket: Boolean) {
 
-  def isDCL() : Boolean = titleID.charAt(7) == 'e'
+  def isPatch() : Boolean = titleID.charAt(7) == 'e'
 
-  def isPatch() : Boolean = titleID.charAt(7) == 'c'
+  def isDLC() : Boolean = titleID.charAt(7) == 'c'
 
   def isDemo() : Boolean = titleID.charAt(7) == '2'
 
@@ -24,8 +24,8 @@ case class Title(titleID: String, titleHash: String, name: String, region: Strin
   def folder() : File = {
     val stripUnsafe = safeName().replaceAll("&", " and ").replaceAll("\\+", " plus").replaceAll("[^a-z^A-Z^0-9^\\s^-]+", "").replaceAll("\\s+", " ").trim
     val folderName = "[" + safeRegion() + "] " + (
-      if (isDCL()) "(DLC) "
-      else if (isPatch()) "(PATCH) "
+      if (isPatch()) "(PATCH) "
+      else if (isDLC()) "(DLC) "
       else if (isDemo()) "(DEMO) "
       else ""
     ) + (if (stripUnsafe.length <= 3) titleID else stripUnsafe)
@@ -35,8 +35,8 @@ case class Title(titleID: String, titleHash: String, name: String, region: Strin
 
 case class Database(alpha: String, beta: String, gamma : String, index: java.util.List[Title]) {
 
-  def findTitle(key: String): Option[Title] = {
-    val filter = IO.SHA256(key.toLowerCase.hb).bh
+  def findTitle(key: Array[Byte]): Option[Title] = {
+    val filter = IO.SHA256(key).bh
     index.asScala.find {
       case title =>
         filter.equals(title.titleHash)

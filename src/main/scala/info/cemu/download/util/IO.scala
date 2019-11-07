@@ -14,6 +14,8 @@ import com.google.gson.Gson
 
 object IO {
 
+  val buffer = byteArray(1024 * 1024)
+
   implicit class URLExtension(url: URL) {
 
 
@@ -48,6 +50,12 @@ object IO {
       content
     }
 
+    def writeBytes(content : Array[Byte]): Unit = {
+      val output = new FileOutputStream(file)
+      output.write(content)
+      output.close()
+    }
+
     def SHA1(): Array[Byte] = {
       val digest = MessageDigest.getInstance("SHA1")
       val inputStream = new BufferedInputStream(new FileInputStream(file))
@@ -59,6 +67,40 @@ object IO {
       digestInputStream.close
       val resultingDigest = result.digest()
       resultingDigest
+    }
+
+
+    def download(input: URL)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
+      lazy val tmdOutput = file.outputStream()
+      var readSize: Int = 0
+      try {
+
+        val stream = input.openStream()
+
+        try {
+
+          while ( {
+            readSize = stream.read(buffer, 0, buffer.length);
+            readSize > -1
+          }) {
+            tmdOutput.write(buffer, 0, readSize)
+            progressBar.foreach {
+              _.add(readSize)
+            }
+          }
+
+          readSize != 0
+        } catch {
+          case _ : Exception =>
+            false
+        } finally {
+          stream.close()
+        }
+
+      } finally {
+        if (readSize != 0)
+          tmdOutput.close()
+      }
     }
 
   }

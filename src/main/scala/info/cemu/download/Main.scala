@@ -1,6 +1,6 @@
 package info.cemu.download
 
-import java.io.File
+import java.io.{File}
 import java.net.URL
 
 import info.cemu.download.util.{ProgressBar}
@@ -9,37 +9,6 @@ import info.cemu.download.util.IO._
 
 object Main {
 
-  val buffer = byteArray(1024 * 1024)
-
-  def download(input: URL, output: File)(implicit progressBar: Option[ProgressBar] = None): Unit = {
-    lazy val tmdOutput = output.outputStream()
-    var readSize: Int = 0
-    try {
-
-      val stream = input.openStream()
-
-      try {
-
-        while ( {
-          readSize = stream.read(buffer, 0, buffer.length);
-          readSize > -1
-        }) {
-          tmdOutput.write(buffer, 0, readSize)
-          progressBar.foreach {
-            _.add(readSize)
-          }
-        }
-
-      } finally {
-        stream.close()
-      }
-
-    } finally {
-      if (readSize != 0)
-        tmdOutput.close()
-    }
-  }
-
   def main(args: Array[String]): Unit = {
 
     if (args.length < 2)
@@ -47,25 +16,34 @@ object Main {
 
     val db = Database(args(0).hb)
 
-    db.findTitle(args(1)) match {
+    val titleKey = args(1).hb
+
+    db.findTitle(titleKey) match {
       case Some(title) =>
 
         val titleId = title.titleID
 
         val url = db.gamma.hs
 
-        val tmdURL = new URL(s"$url/${titleId}/tmd")
-
-
-
         val rootDir = new File(s"downloads/${title.folder()}")
         rootDir.mkdirs()
 
-        val tmdOutputFile = new File(rootDir, "title.tmd")
+        new File(rootDir, "title.cert").writeBytes(db.alpha.hb)
 
-        download(tmdURL, tmdOutputFile)
+        val tmdOutputFile = new File(rootDir, "title.tmd")
+        tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
+
+        if (title.isPatch()) {
+          val dlc = new File(rootDir, "title.tik")
+          dlc.download(new URL(s"$url/${titleId}/cetk"))
+          val ticket = TitleTicket(dlc)
+          TitleTicket.patchDLC(ticket, titleMetaData)
+          dlc.writeBytes(ticket.payload)
+        }
+        else
+          new File(rootDir, "title.tik").writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
 
         val chunks = titleMetaData.contentIterator().toSeq
 
@@ -81,11 +59,10 @@ object Main {
         chunks.foreach {
           case content =>
 
-            val outputContentFile = new File(rootDir, content.filename())
+            val outputContentFile = new File(rootDir, s"${content.filenameBase()}.app")
 
             if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
-              download(new URL(s"$url/${titleId}/${content.filenameBase()}"),
-                outputContentFile)
+              outputContentFile.download(new URL(s"$url/${titleId}/${content.filenameBase()}"))
             } else {
               progressBar.foreach {
                 _.add(content.size())
@@ -93,8 +70,7 @@ object Main {
             }
 
             try {
-              download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"),
-                new File(rootDir, content.filenameBase() + ".h3"))
+              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))
             } catch {
               case _: Exception =>
             }
@@ -107,5 +83,6 @@ object Main {
 
 
   }
+
 
 }

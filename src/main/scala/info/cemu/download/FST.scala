@@ -5,8 +5,8 @@ import info.cemu.download.util.Types._
 import java.io.File
 import info.cemu.download.util.IO._
 
-case class FST(payload: Array[Byte], tmd: TitleMetaData, tik: TitleKey,
-               decryptedKey: Array[Byte])(implicit rootPath : File) extends Payload(payload) {
+case class FST(payload: Array[Byte], tmd: TitleMetaData, tik: TitleTicket,
+               decryptedKey: Array[Byte])(implicit rootPath: File) extends Payload(payload) {
 
   if (magicValue() != 0x46535400)
     throw new RuntimeException("Invalid index, control value not matched after decryption")
@@ -67,17 +67,17 @@ case class FST(payload: Array[Byte], tmd: TitleMetaData, tik: TitleKey,
 
 object FST {
 
-  def decryptedTitleKey(tmd: TitleMetaData, tik: TitleKey, commonKey : Array[Byte]): Array[Byte] = {
+  def decryptedTitleKey(tmd: TitleMetaData, tik: TitleTicket, commonKey: Array[Byte]): Array[Byte] = {
     val encryptedKey = tik.encryptedTitleKey().cloned()
     IO.decrypt(encryptedKey, commonKey, tmd.titleId().padRight(8))
     encryptedKey
   }
 
-  def apply(tmd: TitleMetaData, tik: TitleKey)(implicit commonKey : Array[Byte], rootPath : File): FST = {
+  def apply(tmd: TitleMetaData, tik: TitleTicket)(implicit commonKey: Array[Byte], rootPath: File): FST = {
 
     val indexContent = tmd.content(0)
 
-    val file = IO.resourceToFile(indexContent.filename())
+    val file = IO.resourceToFile(indexContent.filenameBase() + ".app")
 
     val encryptedContent = file.readBytes()
 

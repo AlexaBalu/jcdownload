@@ -16,6 +16,12 @@ case class TitleMetaData(payload : Array[Byte]) extends Payload(payload) {
 
   def titleId() : Array[Byte] = getBytes(0x18C, 8)
 
+  def isPatch() : Boolean = titleId()(7) == 0xe
+
+  def isDCL() : Boolean = titleId()(7) == 0xc
+
+  def isDemo() : Boolean = titleId()(7) == 0x2
+
   def content(index : Int) : Content =
     Content(payload, 0xB04 + 0x30 * index)
 
@@ -30,7 +36,7 @@ case class TitleMetaData(payload : Array[Byte]) extends Payload(payload) {
       result
     }
   }
-
+//  0005000e10 1e 9c 00
 }
 
 
