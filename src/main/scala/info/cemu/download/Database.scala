@@ -22,7 +22,7 @@ case class Title(titleID: String, titleHash: String, name: String, region: Strin
   private def safeRegion() : String = if (region != null) region else "UNKNOWN"
 
   def folder() : File = {
-    val stripUnsafe = safeName().replaceAll("&", " and ").replaceAll("\\+", " plus").replaceAll("[^a-z^A-Z^0-9^\\s^-]+", "").replaceAll("\\s+", " ").trim
+    val stripUnsafe = safeName().replaceAll("&", " and ").replaceAll("\\+", " plus").replaceAll("[^a-z^A-Z^0-9^\\s^-^_]+", "").replaceAll("\\s+", " ").trim
     val folderName = "[" + safeRegion() + "] " + (
       if (isPatch()) "(PATCH) "
       else if (isDLC()) "(DLC) "
