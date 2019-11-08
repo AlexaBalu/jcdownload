@@ -40,15 +40,15 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getNextOffset(): Int = getInt(0x08)
 
-  def getFileOffset(): Int = {
-    val offset = getInt(0x04)
+  def getFileOffset(): Long = {
+    val offset = Integer.toUnsignedLong(getInt(0x04))
     if ((getFlags() & 4) == 0)
       offset << 5
     else
       offset
   }
 
-  def getFileLength(): Int = getInt(0x08)
+  def getFileLength(): Long = Integer.toUnsignedLong(getInt(0x08))
 
   def extractFile()(implicit progress: ProgressBar): Unit = {
 
@@ -61,18 +61,18 @@ case class FEntry(payload: Array[Byte], offset: Int,
       outputFilename.makeDirectories()
       val output = outputFilename.outputStream()
 
-      var bytesLeftToWrite: Int = getFileLength()
-      val fileOffset: Int = getFileOffset()
+      var bytesLeftToWrite: Long = getFileLength()
+      val fileOffset: Long = getFileOffset()
 
-      val alignedReadOffset: Int = (fileOffset / BLOCK_SIZE) * BLOCK_SIZE
-      var initialStoreOffset: Int = fileOffset - alignedReadOffset
+      val alignedReadOffset: Long = (fileOffset / BLOCK_SIZE) * BLOCK_SIZE
+      var initialStoreOffset: Long = fileOffset - alignedReadOffset
 
       val IV = byteArray(16)
       val swapIV = byteArray(16)
       IV(0) = ((getContentID() >> 8) & 0xFF).toByte
       IV(1) = getContentID().toByte
 
-      var bytesToWrite: Int = BLOCK_SIZE
+      var bytesToWrite: Long = BLOCK_SIZE
 
       if ((initialStoreOffset + bytesLeftToWrite) > bytesToWrite)
         bytesToWrite = bytesToWrite - initialStoreOffset
@@ -93,7 +93,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
         IV.copy(swapIV, 0, swapIV.length)
 
-        output.write(blockBuffer, initialStoreOffset, bytesToWrite)
+        output.write(blockBuffer, initialStoreOffset.toInt, bytesToWrite.toInt)
         progress.add(bytesToWrite)
 
         bytesLeftToWrite -= bytesToWrite
@@ -117,8 +117,8 @@ case class FEntry(payload: Array[Byte], offset: Int,
     outputFilename.makeDirectories()
     val output = outputFilename.outputStream()
 
-    val fileOffset: Int = getFileOffset()
-    var Size: Int = getFileLength()
+    val fileOffset: Long = getFileOffset()
+    var Size: Long = getFileLength()
     val ContentID: Byte = getContentID().toByte
 
     val hash = byteArray(SHA_DIGEST_LENGTH)
@@ -126,12 +126,12 @@ case class FEntry(payload: Array[Byte], offset: Int,
     val Hashes = byteArray(HASHES_BLOCK_SIZE)
     val IV = byteArray(16)
 
-    var Wrote = 0
-    var WriteSize = HASH_BLOCK_SIZE // Hash block size
-    var Block = (fileOffset / HASH_BLOCK_SIZE) & 0xF
+    var Wrote: Long = 0
+    var WriteSize: Long = HASH_BLOCK_SIZE // Hash block size
+    var Block: Long = (fileOffset / HASH_BLOCK_SIZE) & 0xF
 
-    val alignedReadOffset = fileOffset / HASH_BLOCK_SIZE * HASHED_BLOCK_SIZE
-    var initialStoreOffset = fileOffset - (fileOffset / HASH_BLOCK_SIZE * HASH_BLOCK_SIZE)
+    val alignedReadOffset: Long = fileOffset / HASH_BLOCK_SIZE * HASHED_BLOCK_SIZE
+    var initialStoreOffset: Long = fileOffset - (fileOffset / HASH_BLOCK_SIZE * HASH_BLOCK_SIZE)
 
     if (initialStoreOffset + Size > WriteSize)
       WriteSize = WriteSize - initialStoreOffset
@@ -152,8 +152,8 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
       encrypt(hashedBuffer, 0, HASHES_BLOCK_SIZE, Hashes, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
 
-      H0.copy(Hashes, SHA_DIGEST_LENGTH * Block, 20)
-      IV.copy(Hashes, SHA_DIGEST_LENGTH * Block, 16)
+      H0.copy(Hashes, (SHA_DIGEST_LENGTH * Block).toInt, 20)
+      IV.copy(Hashes, (SHA_DIGEST_LENGTH * Block).toInt, 16)
 
       if (Block == 0)
         IV(1) = (IV(1) ^ ContentID).toByte
@@ -168,7 +168,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
       if (!java.util.Arrays.equals(hash, H0))
         throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
 
-      output.write(hashedBuffer, initialStoreOffset, WriteSize)
+      output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
       progress.add(WriteSize)
 
       Size -= WriteSize
