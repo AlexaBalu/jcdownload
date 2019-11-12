@@ -77,41 +77,62 @@ object IO {
         new File(result.toURI)
     }
 
-
-    def download(input: URL)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
-      lazy val tmdOutput = file.outputStream()
-      var readSize: Int = 0
-      try {
-
-        val stream = input.openStream()
-
-        try {
-
-          while ( {
-            readSize = stream.read(buffer, 0, buffer.length);
-            readSize > -1
-          }) {
-            tmdOutput.write(buffer, 0, readSize)
-            progressBar.foreach {
-              _.add(readSize)
-            }
-          }
-
-          readSize != 0
-        } catch {
-          case _ : Exception =>
-            false
-        } finally {
-          stream.close()
-        }
-
-      } finally {
-        if (readSize != 0)
-          tmdOutput.close()
-      }
-    }
+    def download(input: URL)(implicit progressBar: Option[ProgressBar] = None): Boolean =
+      downloadContent(input, outputStream())
 
   }
+
+  implicit class RandomFileExtension(file: RandomAccessFile) {
+
+    def download(input: URL)(implicit progressBar: Option[ProgressBar] = None): Boolean =
+      downloadContent(input, new OutputStream {
+        override def write(b: Int): Unit = file.writeInt(b)
+
+        override def write(b: Array[Byte], off: Int, len: Int): Unit = file.write(b, off, len)
+
+        override def close(): Unit = {
+          file.seek(0)
+        }
+      })
+
+  }
+
+
+  def downloadContent(input: URL, output : => OutputStream)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
+    lazy val tmdOutput = {
+      output
+    }
+    var readSize: Int = 0
+    try {
+
+      val stream = input.openStream()
+
+      try {
+
+        while ( {
+          readSize = stream.read(buffer, 0, buffer.length);
+          readSize > -1
+        }) {
+          tmdOutput.write(buffer, 0, readSize)
+          progressBar.foreach {
+            _.add(readSize)
+          }
+        }
+
+        readSize != 0
+      } catch {
+        case _ : Exception =>
+          false
+      } finally {
+        stream.close()
+      }
+
+    } finally {
+      if (readSize != 0)
+        tmdOutput.close()
+    }
+  }
+
 
   def copy(in: InputStream, out: OutputStream): Unit = {
     val buffer = byteArray(1024 * 8)

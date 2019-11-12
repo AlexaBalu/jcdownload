@@ -30,7 +30,7 @@ object Decrypt {
 
     println(s"""Extracting ${cnt} files""")
 
-    implicit val progress = ProgressBar(max)
+    implicit val progress = Some(ProgressBar(max))
 
     parts.foreach{
       case (file, entries) =>

@@ -50,7 +50,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFileLength(): Long = Integer.toUnsignedLong(getInt(0x08))
 
-  def extractFile(in: RandomAccessFile)(implicit progress: ProgressBar): Unit = {
+  def extractFile(in: RandomAccessFile)(implicit progress: Option[ProgressBar]): Unit = {
 
     if (!isExtractable()) {
       // skip
@@ -99,7 +99,9 @@ case class FEntry(payload: Array[Byte], offset: Int,
           IV.copy(swapIV, 0, swapIV.length)
 
           output.write(blockBuffer, initialStoreOffset.toInt, bytesToWrite.toInt)
-          progress.add(bytesToWrite)
+          progress.foreach {
+            _.add(bytesToWrite)
+          }
 
           bytesLeftToWrite -= bytesToWrite
 
@@ -109,12 +111,14 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
         output.close()
       } else {
-        progress.add(bytesLeftToWrite)
+        progress.foreach{
+          _.add(bytesLeftToWrite)
+        }
       }
     }
   }
 
-  protected def extractHashedFile(in: RandomAccessFile)(implicit progress: ProgressBar): Unit = {
+  protected def extractHashedFile(in: RandomAccessFile)(implicit progress: Option[ProgressBar]): Unit = {
 
     val outputFilename = resourceToFile(getFullPath())
 
@@ -180,7 +184,10 @@ case class FEntry(payload: Array[Byte], offset: Int,
           throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
 
         output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
-        progress.add(WriteSize)
+        progress.foreach{
+          _.add(WriteSize)
+        }
+
 
         Size -= WriteSize
         Wrote += WriteSize
@@ -195,7 +202,9 @@ case class FEntry(payload: Array[Byte], offset: Int,
       output.close()
 
     } else {
-      progress.add(Size)
+      progress.foreach{
+        _.add(Size)
+      }
     }
   }
 }
