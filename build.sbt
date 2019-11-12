@@ -13,4 +13,6 @@ libraryDependencies += "com.google.code.gson" % "gson" % "2.8.6"
 
 assemblyJarName in assembly := "jcdownload.jar"
 
+mainClass in assembly := Some("info.cemu.download.Main")
+
 //test in assembly := {}
