@@ -34,7 +34,7 @@ object IO {
         true
     }
 
-    def randomAccess(mode: String = "r"): RandomAccessFile =
+    def randomAccess(mode: String = "rw"): RandomAccessFile =
       new RandomAccessFile(file, mode)
 
     def inputStream(): InputStream =
@@ -67,6 +67,14 @@ object IO {
       digestInputStream.close
       val resultingDigest = result.digest()
       resultingDigest
+    }
+
+    def resourceToFile(name: String)(implicit rootPath: File): File = {
+      val result = getClass.getClassLoader.getResource(name)
+      if (result == null)
+        new File(rootPath, name)
+      else
+        new File(result.toURI)
     }
 
 

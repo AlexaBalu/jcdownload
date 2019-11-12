@@ -35,7 +35,7 @@ object Types {
     }
 
     def cloned(): Array[Byte] =
-      Array.copyOf(value, value.length)
+      java.util.Arrays.copyOf(value, value.length)
 
     def copy(source: Array[Byte], offset: Int, length: Int): Unit =
       Array.copy(source, offset, value, 0, length)
@@ -91,7 +91,7 @@ object Types {
       else {
         val exp = (Math.log(value) / Math.log(unit)).toInt
         val pre = (if (si) "kMGTPE" else "KMGTPE").charAt(exp - 1) + (if (si) "" else "i")
-        String.format("%.1f %sB", value / Math.pow(unit, exp), pre);
+        "%.1f %sB".format(value / Math.pow(unit, exp), pre);
       }
     }
 
@@ -99,7 +99,7 @@ object Types {
       val second = (value / 1000) % 60
       val minute = (value / (1000 * 60)) % 60
       val hour = (value / (1000 * 60 * 60)) % 24
-      String.format("%d:%02d:%02d", hour, minute, second)
+      "%d:%02d:%02d".format(hour, minute, second)
     }
 
   }

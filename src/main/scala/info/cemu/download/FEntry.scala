@@ -1,6 +1,6 @@
 package info.cemu.download
 
-import java.io.File
+import java.io.{File, RandomAccessFile}
 
 import javax.crypto.Cipher
 import util.IO._
@@ -50,140 +50,153 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFileLength(): Long = Integer.toUnsignedLong(getInt(0x08))
 
-  def extractFile()(implicit progress: ProgressBar): Unit = {
+  def extractFile(in: RandomAccessFile)(implicit progress: ProgressBar): Unit = {
 
-    if (isHashed()) {
-      extractHashedFile()
+    if (!isExtractable()) {
+      // skip
+    }
+    else if (isHashed()) {
+      extractHashedFile(in)
     }
     else {
 
       val outputFilename = resourceToFile(getFullPath())
-      outputFilename.makeDirectories()
-      val output = outputFilename.outputStream()
-
       var bytesLeftToWrite: Long = getFileLength()
-      val fileOffset: Long = getFileOffset()
 
-      val alignedReadOffset: Long = (fileOffset / BLOCK_SIZE) * BLOCK_SIZE
-      var initialStoreOffset: Long = fileOffset - alignedReadOffset
+      if (!outputFilename.exists() || outputFilename.length() != bytesLeftToWrite) {
 
-      val IV = byteArray(16)
-      val swapIV = byteArray(16)
-      IV(0) = ((getContentID() >> 8) & 0xFF).toByte
-      IV(1) = getContentID().toByte
+        outputFilename.makeDirectories()
+        val output = outputFilename.outputStream()
 
-      var bytesToWrite: Long = BLOCK_SIZE
+        val fileOffset: Long = getFileOffset()
 
-      if ((initialStoreOffset + bytesLeftToWrite) > bytesToWrite)
-        bytesToWrite = bytesToWrite - initialStoreOffset
+        val alignedReadOffset: Long = (fileOffset / BLOCK_SIZE) * BLOCK_SIZE
+        var initialStoreOffset: Long = fileOffset - alignedReadOffset
 
-      val in = getContainer().randomAccess()
-      in.seek(alignedReadOffset)
+        val IV = byteArray(16)
+        val swapIV = byteArray(16)
+        IV(0) = ((getContentID() >> 8) & 0xFF).toByte
+        IV(1) = getContentID().toByte
 
-      while (bytesLeftToWrite > 0) {
+        var bytesToWrite: Long = BLOCK_SIZE
 
-        if (bytesToWrite > bytesLeftToWrite)
-          bytesToWrite = bytesLeftToWrite
+        if ((initialStoreOffset + bytesLeftToWrite) > bytesToWrite)
+          bytesToWrite = bytesToWrite - initialStoreOffset
 
-        in.read(blockBuffer, 0, BLOCK_SIZE)
+        in.seek(alignedReadOffset)
 
-        swapIV.copy(blockBuffer, BLOCK_SIZE - 16, 16)
+        while (bytesLeftToWrite > 0) {
 
-        encrypt(blockBuffer, 0, BLOCK_SIZE, blockBuffer, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
+          if (bytesToWrite > bytesLeftToWrite)
+            bytesToWrite = bytesLeftToWrite
 
-        IV.copy(swapIV, 0, swapIV.length)
+          in.read(blockBuffer, 0, BLOCK_SIZE)
 
-        output.write(blockBuffer, initialStoreOffset.toInt, bytesToWrite.toInt)
-        progress.add(bytesToWrite)
+          swapIV.copy(blockBuffer, BLOCK_SIZE - 16, 16)
 
-        bytesLeftToWrite -= bytesToWrite
+          encrypt(blockBuffer, 0, BLOCK_SIZE, blockBuffer, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
 
-        bytesToWrite = BLOCK_SIZE
-        initialStoreOffset = 0
+          IV.copy(swapIV, 0, swapIV.length)
+
+          output.write(blockBuffer, initialStoreOffset.toInt, bytesToWrite.toInt)
+          progress.add(bytesToWrite)
+
+          bytesLeftToWrite -= bytesToWrite
+
+          bytesToWrite = BLOCK_SIZE
+          initialStoreOffset = 0
+        }
+
+        output.close()
+      } else {
+        progress.add(bytesLeftToWrite)
       }
-
-      output.close()
-      in.close()
     }
   }
 
-  protected def extractHashedFile()(implicit progress: ProgressBar): Unit = {
-
-    val HASH_BLOCK_SIZE = 0xFC00
-    val SHA_DIGEST_LENGTH = 0x14
-    val HASHES_BLOCK_SIZE = 0x400
+  protected def extractHashedFile(in: RandomAccessFile)(implicit progress: ProgressBar): Unit = {
 
     val outputFilename = resourceToFile(getFullPath())
-    outputFilename.makeDirectories()
-    val output = outputFilename.outputStream()
 
-    val fileOffset: Long = getFileOffset()
     var Size: Long = getFileLength()
-    val ContentID: Byte = getContentID().toByte
 
-    val hash = byteArray(SHA_DIGEST_LENGTH)
-    val H0 = byteArray(SHA_DIGEST_LENGTH)
-    val Hashes = byteArray(HASHES_BLOCK_SIZE)
-    val IV = byteArray(16)
+    if (!outputFilename.exists() || outputFilename.length() != Size) {
 
-    var Wrote: Long = 0
-    var WriteSize: Long = HASH_BLOCK_SIZE // Hash block size
-    var Block: Long = (fileOffset / HASH_BLOCK_SIZE) & 0xF
+      val HASH_BLOCK_SIZE = 0xFC00
+      val SHA_DIGEST_LENGTH = 0x14
+      val HASHES_BLOCK_SIZE = 0x400
 
-    val alignedReadOffset: Long = fileOffset / HASH_BLOCK_SIZE * HASHED_BLOCK_SIZE
-    var initialStoreOffset: Long = fileOffset - (fileOffset / HASH_BLOCK_SIZE * HASH_BLOCK_SIZE)
+      outputFilename.makeDirectories()
+      val output = outputFilename.outputStream()
 
-    if (initialStoreOffset + Size > WriteSize)
-      WriteSize = WriteSize - initialStoreOffset
+      val fileOffset: Long = getFileOffset()
 
-    val in = getContainer().randomAccess()
-    in.seek(alignedReadOffset)
+      val ContentID: Byte = getContentID().toByte
 
-    while (Size > 0) {
+      val hash = byteArray(SHA_DIGEST_LENGTH)
+      val H0 = byteArray(SHA_DIGEST_LENGTH)
+      val Hashes = byteArray(HASHES_BLOCK_SIZE)
+      val IV = byteArray(16)
 
-      if (WriteSize > Size)
-        WriteSize = Size
+      var Wrote: Long = 0
+      var WriteSize: Long = HASH_BLOCK_SIZE // Hash block size
+      var Block = (fileOffset / HASH_BLOCK_SIZE) & 0xF
 
-      in.read(hashedBuffer, 0, HASHED_BLOCK_SIZE)
+      val alignedReadOffset = fileOffset / HASH_BLOCK_SIZE * HASHED_BLOCK_SIZE
+      var initialStoreOffset = fileOffset - (fileOffset / HASH_BLOCK_SIZE * HASH_BLOCK_SIZE)
 
-      IV.fill(0)
-      IV(0) = ((ContentID >> 8) & 0xFF).toByte
-      IV(1) = ContentID.toByte
+      if (initialStoreOffset + Size > WriteSize)
+        WriteSize = WriteSize - initialStoreOffset
 
-      encrypt(hashedBuffer, 0, HASHES_BLOCK_SIZE, Hashes, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
+      in.seek(alignedReadOffset)
 
-      H0.copy(Hashes, (SHA_DIGEST_LENGTH * Block).toInt, 20)
-      IV.copy(Hashes, (SHA_DIGEST_LENGTH * Block).toInt, 16)
+      while (Size > 0) {
 
-      if (Block == 0)
-        IV(1) = (IV(1) ^ ContentID).toByte
+        if (WriteSize > Size)
+          WriteSize = Size
 
-      encrypt(hashedBuffer, HASHES_BLOCK_SIZE, HASH_BLOCK_SIZE, hashedBuffer, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
+        in.read(hashedBuffer, 0, HASHED_BLOCK_SIZE)
 
-      SHA1(hashedBuffer, HASH_BLOCK_SIZE, hash)
+        IV.fill(0)
+        IV(0) = ((ContentID >> 8) & 0xFF).toByte
+        IV(1) = ContentID.toByte
 
-      if (Block == 0)
-        hash(1) = (hash(1) ^ ContentID).toByte
+        encrypt(hashedBuffer, 0, HASHES_BLOCK_SIZE, Hashes, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
 
-      if (!java.util.Arrays.equals(hash, H0))
-        throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
+        H0.copy(Hashes, (SHA_DIGEST_LENGTH * Block).toInt, 20)
+        IV.copy(Hashes, (SHA_DIGEST_LENGTH * Block).toInt, 16)
 
-      output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
-      progress.add(WriteSize)
+        if (Block == 0)
+          IV(1) = (IV(1) ^ ContentID).toByte
 
-      Size -= WriteSize
-      Wrote += WriteSize
+        encrypt(hashedBuffer, HASHES_BLOCK_SIZE, HASH_BLOCK_SIZE, hashedBuffer, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
 
-      Block += 1
-      if (Block >= 16)
-        Block = 0
+        SHA1(hashedBuffer, HASH_BLOCK_SIZE, hash)
 
-      WriteSize = HASH_BLOCK_SIZE
-      initialStoreOffset = 0
+        if (Block == 0)
+          hash(1) = (hash(1) ^ ContentID).toByte
+
+        if (!java.util.Arrays.equals(hash, H0))
+          throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
+
+        output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
+        progress.add(WriteSize)
+
+        Size -= WriteSize
+        Wrote += WriteSize
+
+        Block = ((Block + 1) % 16)
+
+        WriteSize = HASH_BLOCK_SIZE
+        initialStoreOffset = 0
+
+      }
+
+      output.close()
+
+    } else {
+      progress.add(Size)
     }
-
-    output.close()
-    in.close()
   }
 }
 
