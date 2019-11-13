@@ -12,6 +12,8 @@ import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 import Types._
 import com.google.gson.Gson
 
+import scala.annotation.tailrec
+
 object IO {
 
   val buffer = byteArray(1024 * 1024)
@@ -50,7 +52,7 @@ object IO {
       content
     }
 
-    def writeBytes(content : Array[Byte]): Unit = {
+    def writeBytes(content: Array[Byte]): Unit = {
       val output = new FileOutputStream(file)
       output.write(content)
       output.close()
@@ -95,10 +97,25 @@ object IO {
         }
       })
 
+    def readBytesFully(buffer: Array[Byte], offset: Int, length: Int): Int = {
+      var n = 0
+      @tailrec
+      def recursive(): Unit = {
+        var count = file.read(buffer, offset + n, length - n)
+        if (count >= 0) {
+          n += count
+          if (n < length)
+            recursive()
+        }
+      }
+      recursive()
+      n
+    }
+
   }
 
 
-  def downloadContent(input: URL, output : => OutputStream)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
+  def downloadContent(input: URL, output: => OutputStream)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
     lazy val tmdOutput = {
       output
     }
@@ -121,7 +138,7 @@ object IO {
 
         readSize != 0
       } catch {
-        case _ : Exception =>
+        case _: Exception =>
           false
       } finally {
         stream.close()

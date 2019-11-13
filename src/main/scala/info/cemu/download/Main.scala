@@ -9,21 +9,24 @@ import info.cemu.download.util.IO._
 
 object Main {
 
+
   def main(args: Array[String]): Unit = {
 
-    if (args.length < 2)
-      throw new RuntimeException("java -jar jcdownload.jar <common key> <title key>")
+    val arguments = Arguments(args)
 
-    implicit val commonKey = args(0).hb
+    if (arguments.count() < 2)
+      throw new RuntimeException("java -jar jcdownload.jar <COMMON KEY> <TITLE KEY or FOLDER or TITLE KEY FILE>")
+
+    implicit val commonKey = arguments.getCommonKey()
 
     val db = Database(commonKey)
 
-    val titleKey = args(1).hb
+    val titleKey = arguments.getTitleKey()
 
     db.findTitle(titleKey) match {
       case Some(title) =>
 
-        implicit var progressBar : Option[ProgressBar] =  None
+        implicit var progressBar: Option[ProgressBar] = None
 
         val titleId = title.titleID
 
@@ -51,11 +54,11 @@ object Main {
             size + content.size()
         }
 
-        println(s"""Downloading ${chunks.size} chunks into "${rootDir.getCanonicalPath}"""")
+        println(s"""Downloading ${chunks.size} chunks of ${max.toDisplaySize()} into "${rootDir.getCanonicalPath}"""")
 
-        var parts : Option[Map[File, Seq[FEntry]]] = None
+        var parts: Option[Map[File, Seq[FEntry]]] = None
 
-        def processContainer(index : Int, contentFile : File, contentFileDescriptor : RandomAccessFile) : Unit = {
+        def processContainer(index: Int, contentFile: File, contentFileDescriptor: RandomAccessFile): Unit = {
           if (index == 0) {
             val tik = TitleTicket(IO.resourceToFile("title.tik"))
             val index = FST(titleMetaData, tik)
@@ -64,17 +67,25 @@ object Main {
               case ((cnt: Int, current: Long), right: FEntry) =>
                 (cnt + 1, current + right.getFileLength())
             }
-            println(s"""Extracting ${cnt} files during that process""")
-            progressBar = Some(ProgressBar(max))
+            println(s"""Extracting and decrypting ${cnt} files during that process""")
+            val pb = ProgressBar(max)
+            pb.setChunksCount(chunks.length)
+            progressBar = Some(pb)
             parts = Some(toExtract)
-          } else  {
-            parts.foreach{
+          } else {
+            parts.foreach {
               case toExtract =>
-                toExtract.get(contentFile).foreach{
+                toExtract.get(contentFile).foreach {
                   case entries =>
-                    entries.foreach {
-                      case entry =>
+                    progressBar.foreach{
+                      _.setFilesCount(entries.length)
+                    }
+                    entries.zipWithIndex.foreach {
+                      case (entry, index) =>
                         entry.extractFile(contentFileDescriptor)(None)
+                        progressBar.foreach{
+                          _.setCurrentFile(index + 1)
+                        }
                     }
                 }
             }
@@ -83,6 +94,9 @@ object Main {
 
         chunks.zipWithIndex.foreach {
           case (content, index) =>
+            progressBar.foreach{
+              _.setCurrentChunk(index + 1)
+            }
             val contentFile = new File(rootDir, s"${content.filenameBase()}.app")
             val contentFileDescriptor = contentFile.randomAccess()
             try {
@@ -111,7 +125,27 @@ object Main {
     }
   }
 
+  case class Arguments(args: Array[String]) {
 
+    def count(): Int = args.length
+
+    def getCommonKey(): Array[Byte] = args(0).trim.hb
+
+    def getTitleKey(): Array[Byte] = {
+      val value = args(1).trim
+      val content = new File(value)
+      if (content.isDirectory) {
+        val tik = TitleTicket(IO.resourceToFile("title.tik")(content))
+        tik.encryptedTitleKey()
+      } else if (content.isFile()) {
+        val tik = TitleTicket(IO.resourceToFile(content.getName)(content.getParentFile))
+        tik.encryptedTitleKey()
+      } else {
+        value.hb
+      }
+    }
+
+  }
 
 
 }

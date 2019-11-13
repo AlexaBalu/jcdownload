@@ -13,6 +13,11 @@ case class ProgressBar(max: Long) {
   var startTimestamp: Long = 0
   var estimatedFinish: Long = 0
 
+  var chunksCount: Long = 0
+  var currentChunk: Long = 0
+  var filesCount: Long = 0
+  var currentFile: Long = 0
+
   def set(value: Long): Unit = {
 
     current = Math.min(value, max)
@@ -47,14 +52,36 @@ case class ProgressBar(max: Long) {
     set(current)
   }
 
-  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size : Int = 10): Unit = {
+  def setChunksCount(count : Long): Unit = {
+    chunksCount = count
+    set(current)
+  }
+
+  def setCurrentChunk(chunk : Long): Unit = {
+    currentChunk = chunk
+    filesCount = 0
+    currentFile = 0
+    set(current)
+  }
+
+  def setFilesCount(count : Long): Unit = {
+    filesCount = count
+    set(current)
+  }
+
+  def setCurrentFile(file : Long): Unit = {
+    currentFile = file
+    set(current)
+  }
+
+  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size: Int = 10): Unit = {
     if (!done) {
       val scale = size / 10.0
       val progress = (value * scale / 10.0).toInt
       val status = value.toInt
-      print("% 4d%% [%s%s] %s of %s at %s/s [%s<%s]       ".format(status, "#" * progress,
+      print(" (%d/%d)% 4d%% [%s%s] %s of %s at %s/s [%s<%s] (%d/%d)      ".format(currentChunk, chunksCount, status, "#" * progress,
         " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
-        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime()))
+        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), currentFile, filesCount))
       if (status == 100) {
         done = true
         println()

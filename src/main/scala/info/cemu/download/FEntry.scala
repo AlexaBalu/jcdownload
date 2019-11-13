@@ -90,7 +90,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
           if (bytesToWrite > bytesLeftToWrite)
             bytesToWrite = bytesLeftToWrite
 
-          in.read(blockBuffer, 0, BLOCK_SIZE)
+          in.readBytesFully(blockBuffer, 0, BLOCK_SIZE)
 
           swapIV.copy(blockBuffer, BLOCK_SIZE - 16, 16)
 
@@ -159,7 +159,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
         if (WriteSize > Size)
           WriteSize = Size
 
-        in.read(hashedBuffer, 0, HASHED_BLOCK_SIZE)
+        in.readBytesFully(hashedBuffer, 0, HASHED_BLOCK_SIZE)
 
         IV.fill(0)
         IV(0) = ((ContentID >> 8) & 0xFF).toByte
