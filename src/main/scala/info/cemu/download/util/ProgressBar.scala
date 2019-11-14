@@ -19,6 +19,7 @@ case class ProgressBar(max: Long) {
   var currentFile: Long = 0
 
   var resetEstimation = false
+  var estimationStart: Long = 0
   var currentAlreadyDownloaded: Long = 0
 
   def get(): Long = current
@@ -31,14 +32,19 @@ case class ProgressBar(max: Long) {
     if (startTimestamp == 0)
       startTimestamp = currentTimestamp
 
+    if (estimationStart == 0)
+      estimationStart = currentTimestamp
+
     val progress = ((current * 100.0) / max)
 
     val passed = currentTimestamp - startTimestamp
 
     if ((current < max) && ((lastRatingTimestamp + 2000) < currentTimestamp)) {
 
-      if (passed > 0)
-        estimatedFinish = (((max - currentAlreadyDownloaded).toDouble * passed.toDouble) / (current - currentAlreadyDownloaded).toDouble).toLong
+      val estimationPassed = currentTimestamp - estimationStart
+
+      if (estimationPassed > 0)
+        estimatedFinish = (estimationStart - startTimestamp) + (((max - currentAlreadyDownloaded).toDouble * estimationPassed.toDouble) / (current - currentAlreadyDownloaded).toDouble).toLong
 
       val timeDifference = currentTimestamp - lastRatingTimestamp
       val valueDifference = current - lastRatingValue
@@ -49,7 +55,7 @@ case class ProgressBar(max: Long) {
     }
 
     set(progress, current, max, lastRating,
-      if (passed > estimatedFinish) estimatedFinish else passed, estimatedFinish)
+      passed, if (passed > estimatedFinish) passed else estimatedFinish)
   }
 
   def add(chunk: Long, alreadyDownloaded: Boolean = false): Unit = {
@@ -57,7 +63,7 @@ case class ProgressBar(max: Long) {
     if (!alreadyDownloaded) {
       if (resetEstimation) {
         currentAlreadyDownloaded = current
-        startTimestamp = 0
+        estimationStart = 0
         resetEstimation = false
       }
     } else {
