@@ -106,7 +106,7 @@ object Main {
                 processContainer(index, contentFile, contentFileDescriptor)
               } else {
                 progressBar.foreach {
-                  _.add(content.size())
+                  _.add(content.size(), true)
                 }
                 processContainer(index, contentFile, contentFileDescriptor)
               }

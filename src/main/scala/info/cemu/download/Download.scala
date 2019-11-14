@@ -60,7 +60,7 @@ object Download {
               outputContentFile.download(new URL(s"$url/${titleId}/${content.filenameBase()}"))
             } else {
               progressBar.foreach {
-                _.add(content.size())
+                _.add(content.size(), true)
               }
             }
 

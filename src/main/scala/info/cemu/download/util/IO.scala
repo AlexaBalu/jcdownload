@@ -121,7 +121,7 @@ object IO {
         file.seek(alreadyDownloaded)
 
         progressBar.foreach {
-          _.add(alreadyDownloaded)
+          _.add(alreadyDownloaded, true)
         }
 
         val input = connection.getInputStream

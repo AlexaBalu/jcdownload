@@ -112,7 +112,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
         output.close()
       } else {
         progress.foreach{
-          _.add(bytesLeftToWrite)
+          _.add(bytesLeftToWrite, true)
         }
       }
     }
@@ -203,7 +203,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
     } else {
       progress.foreach{
-        _.add(Size)
+        _.add(Size, true)
       }
     }
   }
