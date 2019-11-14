@@ -101,7 +101,8 @@ object Main {
             val contentFileDescriptor = contentFile.randomAccess()
             try {
               if (!contentFile.exists() || contentFile.length() != content.size()) {
-                contentFileDescriptor.download(new URL(s"$url/${titleId}/${content.filenameBase()}"))
+                if (!contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size()))
+                  throw new RuntimeException(s"""Failed to successfully download "${content.filename()}" container""")
                 processContainer(index, contentFile, contentFileDescriptor)
               } else {
                 progressBar.foreach {
@@ -113,7 +114,7 @@ object Main {
               contentFileDescriptor.close()
             }
             try {
-              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))
+              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
             } catch {
               case _: Exception =>
             }

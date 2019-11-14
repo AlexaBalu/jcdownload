@@ -1,11 +1,11 @@
 package info.cemu.download.util
 
 import java.io.{BufferedInputStream, BufferedOutputStream, ByteArrayInputStream, ByteArrayOutputStream, File, FileInputStream, FileOutputStream, InputStream, InputStreamReader, OutputStream, RandomAccessFile}
-import java.net.URL
+import java.net.{HttpURLConnection, URL}
 
 import org.apache.commons.io.IOUtils
 import java.security.{DigestInputStream, MessageDigest}
-import java.util.zip.{DeflaterOutputStream, InflaterInputStream, InflaterOutputStream, ZipInputStream, ZipOutputStream}
+import java.util.zip.{DeflaterOutputStream, InflaterOutputStream}
 
 import javax.crypto.Cipher
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
@@ -36,7 +36,7 @@ object IO {
         true
     }
 
-    def randomAccess(mode: String = "rw"): RandomAccessFile =
+    def randomAccess(mode: String = "rws"): RandomAccessFile =
       new RandomAccessFile(file, mode)
 
     def inputStream(): InputStream =
@@ -86,19 +86,75 @@ object IO {
 
   implicit class RandomFileExtension(file: RandomAccessFile) {
 
+    def outputStream(): OutputStream = new OutputStream {
+      override def write(b: Int): Unit = file.writeInt(b)
+
+      override def write(b: Array[Byte], off: Int, len: Int): Unit = file.write(b, off, len)
+
+      override def close(): Unit = {
+        file.seek(0)
+      }
+    }
+
     def download(input: URL)(implicit progressBar: Option[ProgressBar] = None): Boolean =
-      downloadContent(input, new OutputStream {
-        override def write(b: Int): Unit = file.writeInt(b)
+      downloadContent(input, outputStream())
 
-        override def write(b: Array[Byte], off: Int, len: Int): Unit = file.write(b, off, len)
+    def resume(inputUrl: URL, expected: Long)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
 
-        override def close(): Unit = {
-          file.seek(0)
+      val currentStatus = progressBar.map(_.get())
+
+      @tailrec
+      def recursive(tries: Int): Long = {
+
+        progressBar.foreach {
+          progress =>
+            currentStatus.foreach {
+              progress.set
+            }
         }
-      })
+
+        val alreadyDownloaded = file.length()
+        val connection = inputUrl.openConnection.asInstanceOf[HttpURLConnection]
+        connection.setRequestProperty("Range", "bytes=" + alreadyDownloaded + "-")
+        connection.setDoInput(true)
+        connection.setDoOutput(true)
+        file.seek(alreadyDownloaded)
+
+        progressBar.foreach {
+          _.add(alreadyDownloaded)
+        }
+
+        val input = connection.getInputStream
+
+        var totalDownloaded: Long = 0
+
+        try {
+          val output = outputStream()
+          try {
+            totalDownloaded = transfer(input, output) + alreadyDownloaded
+          } finally {
+            output.close()
+          }
+        } finally {
+          input.close()
+          connection.disconnect()
+        }
+
+        if (totalDownloaded == expected || tries < 0) {
+          totalDownloaded
+        } else {
+          recursive(tries - 1)
+        }
+      }
+
+      recursive(3) == expected
+
+    }
+
 
     def readBytesFully(buffer: Array[Byte], offset: Int, length: Int): Int = {
-      var n = 0
+      var n: Int = 0
+
       @tailrec
       def recursive(): Unit = {
         var count = file.read(buffer, offset + n, length - n)
@@ -108,44 +164,47 @@ object IO {
             recursive()
         }
       }
+
       recursive()
       n
     }
 
   }
 
+  protected def transfer(input: InputStream, output: OutputStream)(implicit progressBar: Option[ProgressBar] = None): Long = {
+    var readSize: Int = 0
+    var total: Long = 0
+    while ( {
+      readSize = input.read(buffer, 0, buffer.length);
+      readSize > -1
+    }) {
+      output.write(buffer, 0, readSize)
+      total += readSize
+      progressBar.foreach {
+        _.add(readSize)
+      }
+    }
+    total
+  }
 
   def downloadContent(input: URL, output: => OutputStream)(implicit progressBar: Option[ProgressBar] = None): Boolean = {
     lazy val tmdOutput = {
       output
     }
-    var readSize: Int = 0
+    var wasFound = false
     try {
-
       val stream = input.openStream()
-
       try {
-
-        while ( {
-          readSize = stream.read(buffer, 0, buffer.length);
-          readSize > -1
-        }) {
-          tmdOutput.write(buffer, 0, readSize)
-          progressBar.foreach {
-            _.add(readSize)
-          }
-        }
-
-        readSize != 0
+        wasFound = transfer(stream, tmdOutput) != 0
+        wasFound
       } catch {
         case _: Exception =>
           false
       } finally {
         stream.close()
       }
-
     } finally {
-      if (readSize != 0)
+      if (wasFound)
         tmdOutput.close()
     }
   }
