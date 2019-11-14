@@ -32,7 +32,9 @@ object Main {
 
         val url = db.gamma.hs
 
-        implicit val rootDir = new File(s"downloads/${title.folder()}")
+        implicit val rootDir = arguments.getRootFolder().getOrElse(
+          new File(s"downloads/${title.folder()}")
+        )
         rootDir.mkdirs()
 
         new File(rootDir, "title.cert").writeBytes(db.alpha.hb)
@@ -58,21 +60,22 @@ object Main {
 
         var parts: Option[Map[File, Seq[FEntry]]] = None
 
-        def processContainer(index: Int, contentFile: File, contentFileDescriptor: RandomAccessFile): Unit = {
-          progressBar.foreach{
+        def processContainer(index: Int, contentFile: File, contentFileDescriptor: RandomAccessFile, contentSize: Long): Unit = {
+          progressBar.foreach {
             _.setCurrentChunk(index + 1)
           }
           if (index == 0) {
             val tik = TitleTicket(IO.resourceToFile("title.tik"))
             val index = FST(titleMetaData, tik)
             val toExtract = index.sortedEntries().toMap
-            val (cnt, max) = toExtract.toSeq.flatMap(_._2).foldLeft[(Int, Long)]((0, 0L)) {
+            val (cnt, _) = toExtract.toSeq.flatMap(_._2).foldLeft[(Int, Long)]((0, 0L)) {
               case ((cnt: Int, current: Long), right: FEntry) =>
                 (cnt + 1, current + right.getFileLength())
             }
             println(s"""Extracting and decrypting ${cnt} files during that process""")
             val pb = ProgressBar(max)
             pb.setChunksCount(chunks.length)
+            pb.add(contentSize)
             progressBar = Some(pb)
             parts = Some(toExtract)
           } else {
@@ -80,13 +83,13 @@ object Main {
               case toExtract =>
                 toExtract.get(contentFile).foreach {
                   case entries =>
-                    progressBar.foreach{
+                    progressBar.foreach {
                       _.setFilesCount(entries.length)
                     }
                     entries.zipWithIndex.foreach {
                       case (entry, index) =>
                         entry.extractFile(contentFileDescriptor)(None)
-                        progressBar.foreach{
+                        progressBar.foreach {
                           _.setCurrentFile(index + 1)
                         }
                     }
@@ -104,12 +107,12 @@ object Main {
               if (!contentFile.exists() || contentFile.length() != content.size()) {
                 if (!contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size()))
                   throw new RuntimeException(s"""Failed to successfully download "${content.filename()}" container""")
-                processContainer(index, contentFile, contentFileDescriptor)
+                processContainer(index, contentFile, contentFileDescriptor, content.size())
               } else {
                 progressBar.foreach {
                   _.add(content.size(), true)
                 }
-                processContainer(index, contentFile, contentFileDescriptor)
+                processContainer(index, contentFile, contentFileDescriptor, content.size())
               }
             } finally {
               contentFileDescriptor.close()
@@ -132,6 +135,18 @@ object Main {
     def count(): Int = args.length
 
     def getCommonKey(): Array[Byte] = args(0).trim.hb
+
+    def getRootFolder(): Option[File] = {
+      val value = args(1).trim
+      val content = new File(value)
+      if (content.isDirectory) {
+        Some(content)
+      } else if (content.isFile()) {
+        Some(content.getParentFile)
+      } else {
+        None
+      }
+    }
 
     def getTitleKey(): Array[Byte] = {
       val value = args(1).trim
