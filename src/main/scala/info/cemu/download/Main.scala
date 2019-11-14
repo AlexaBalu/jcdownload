@@ -1,31 +1,40 @@
 package info.cemu.download
 
-import java.io.{File}
+import java.io.{File, RandomAccessFile}
 import java.net.URL
 
-import info.cemu.download.util.{ProgressBar}
+import info.cemu.download.util.{IO, ProgressBar}
 import info.cemu.download.util.Types._
 import info.cemu.download.util.IO._
 
 object Main {
 
+
   def main(args: Array[String]): Unit = {
 
-    if (args.length < 2)
-      throw new RuntimeException("java -jar jcdownload.jar <common key> <title key>")
+    val arguments = Arguments(args)
 
-    val db = Database(args(0).hb)
+    if (arguments.count() < 2)
+      throw new RuntimeException("java -jar jcdownload.jar <COMMON KEY> <TITLE KEY or FOLDER or TITLE KEY FILE>")
 
-    val titleKey = args(1).hb
+    implicit val commonKey = arguments.getCommonKey()
+
+    val db = Database(commonKey)
+
+    val titleKey = arguments.getTitleKey()
 
     db.findTitle(titleKey) match {
       case Some(title) =>
+
+        implicit var progressBar: Option[ProgressBar] = None
 
         val titleId = title.titleID
 
         val url = db.gamma.hs
 
-        val rootDir = new File(s"downloads/${title.folder()}")
+        implicit val rootDir = arguments.getRootFolder().getOrElse(
+          new File(s"downloads/${title.folder()}")
+        )
         rootDir.mkdirs()
 
         new File(rootDir, "title.cert").writeBytes(db.alpha.hb)
@@ -47,25 +56,69 @@ object Main {
             size + content.size()
         }
 
-        println(s"""Downloading ${chunks.size} chunks into "${rootDir.getCanonicalPath}"""")
+        println(s"""Downloading ${chunks.size} chunks of ${max.toDisplaySize()} into "${rootDir.getCanonicalPath}"""")
 
-        implicit val progressBar = Some(ProgressBar(max))
+        var parts: Option[Map[File, Seq[FEntry]]] = None
 
-        chunks.foreach {
-          case content =>
-
-            val outputContentFile = new File(rootDir, s"${content.filenameBase()}.app")
-
-            if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
-              outputContentFile.download(new URL(s"$url/${titleId}/${content.filenameBase()}"))
-            } else {
-              progressBar.foreach {
-                _.add(content.size())
-              }
+        def processContainer(index: Int, contentFile: File, contentFileDescriptor: RandomAccessFile, contentSize: Long): Unit = {
+          progressBar.foreach {
+            _.setCurrentChunk(index + 1)
+          }
+          if (index == 0) {
+            val tik = TitleTicket(IO.resourceToFile("title.tik"))
+            val index = FST(titleMetaData, tik)
+            val toExtract = index.sortedEntries().toMap
+            val (cnt, _) = toExtract.toSeq.flatMap(_._2).foldLeft[(Int, Long)]((0, 0L)) {
+              case ((cnt: Int, current: Long), right: FEntry) =>
+                (cnt + 1, current + right.getFileLength())
             }
+            println(s"""Extracting and decrypting ${cnt} files during that process""")
+            val pb = ProgressBar(max)
+            pb.setChunksCount(chunks.length)
+            pb.add(contentSize)
+            progressBar = Some(pb)
+            parts = Some(toExtract)
+          } else {
+            parts.foreach {
+              case toExtract =>
+                toExtract.get(contentFile).foreach {
+                  case entries =>
+                    progressBar.foreach {
+                      _.setFilesCount(entries.length)
+                    }
+                    entries.zipWithIndex.foreach {
+                      case (entry, index) =>
+                        entry.extractFile(contentFileDescriptor)(None)
+                        progressBar.foreach {
+                          _.setCurrentFile(index + 1)
+                        }
+                    }
+                }
+            }
+          }
+        }
 
+        chunks.zipWithIndex.foreach {
+          case (content, index) =>
+
+            val contentFile = new File(rootDir, s"${content.filenameBase()}.app")
+            val contentFileDescriptor = contentFile.randomAccess()
             try {
-              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))
+              if (!contentFile.exists() || contentFile.length() != content.size()) {
+                if (!contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size()))
+                  throw new RuntimeException(s"""Failed to successfully download "${content.filename()}" container""")
+                processContainer(index, contentFile, contentFileDescriptor, content.size())
+              } else {
+                progressBar.foreach {
+                  _.add(content.size(), true)
+                }
+                processContainer(index, contentFile, contentFileDescriptor, content.size())
+              }
+            } finally {
+              contentFileDescriptor.close()
+            }
+            try {
+              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
             } catch {
               case _: Exception =>
             }
@@ -75,7 +128,39 @@ object Main {
         println("This title can't be downloaded")
         System.exit(-1)
     }
+  }
 
+  case class Arguments(args: Array[String]) {
+
+    def count(): Int = args.length
+
+    def getCommonKey(): Array[Byte] = args(0).trim.hb
+
+    def getRootFolder(): Option[File] = {
+      val value = args(1).trim
+      val content = new File(value)
+      if (content.isDirectory) {
+        Some(content)
+      } else if (content.isFile()) {
+        Some(content.getParentFile)
+      } else {
+        None
+      }
+    }
+
+    def getTitleKey(): Array[Byte] = {
+      val value = args(1).trim
+      val content = new File(value)
+      if (content.isDirectory) {
+        val tik = TitleTicket(IO.resourceToFile("title.tik")(content))
+        tik.encryptedTitleKey()
+      } else if (content.isFile()) {
+        val tik = TitleTicket(IO.resourceToFile(content.getName)(content.getParentFile))
+        tik.encryptedTitleKey()
+      } else {
+        value.hb
+      }
+    }
 
   }
 

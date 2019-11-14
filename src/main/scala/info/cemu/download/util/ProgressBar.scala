@@ -13,6 +13,17 @@ case class ProgressBar(max: Long) {
   var startTimestamp: Long = 0
   var estimatedFinish: Long = 0
 
+  var chunksCount: Long = 0
+  var currentChunk: Long = 0
+  var filesCount: Long = 0
+  var currentFile: Long = 0
+
+  var resetEstimation = false
+  var estimationStart: Long = 0
+  var currentAlreadyDownloaded: Long = 0
+
+  def get(): Long = current
+
   def set(value: Long): Unit = {
 
     current = Math.min(value, max)
@@ -21,14 +32,19 @@ case class ProgressBar(max: Long) {
     if (startTimestamp == 0)
       startTimestamp = currentTimestamp
 
+    if (estimationStart == 0)
+      estimationStart = currentTimestamp
+
     val progress = ((current * 100.0) / max)
 
     val passed = currentTimestamp - startTimestamp
 
     if ((current < max) && ((lastRatingTimestamp + 2000) < currentTimestamp)) {
 
-      if (passed > 0)
-        estimatedFinish = ((max.toDouble * passed.toDouble) / current.toDouble).toLong
+      val estimationPassed = currentTimestamp - estimationStart
+
+      if (estimationPassed > 0)
+        estimatedFinish = (estimationStart - startTimestamp) + (((max - currentAlreadyDownloaded).toDouble * estimationPassed.toDouble) / (current - currentAlreadyDownloaded).toDouble).toLong
 
       val timeDifference = currentTimestamp - lastRatingTimestamp
       val valueDifference = current - lastRatingValue
@@ -39,23 +55,54 @@ case class ProgressBar(max: Long) {
     }
 
     set(progress, current, max, lastRating,
-      if (passed > estimatedFinish) estimatedFinish else passed, estimatedFinish)
+      passed, if (passed > estimatedFinish) passed else estimatedFinish)
   }
 
-  def add(chunk: Long): Unit = {
+  def add(chunk: Long, alreadyDownloaded: Boolean = false): Unit = {
     current += chunk
+    if (!alreadyDownloaded) {
+      if (resetEstimation) {
+        currentAlreadyDownloaded = current
+        estimationStart = 0
+        resetEstimation = false
+      }
+    } else {
+      resetEstimation = true
+    }
     set(current)
   }
 
-  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size : Int = 10): Unit = {
+  def setChunksCount(count: Long): Unit = {
+    chunksCount = count
+    set(current)
+  }
+
+  def setCurrentChunk(chunk: Long): Unit = {
+    currentChunk = chunk
+    filesCount = 0
+    currentFile = 0
+    set(current)
+  }
+
+  def setFilesCount(count: Long): Unit = {
+    filesCount = count
+    set(current)
+  }
+
+  def setCurrentFile(file: Long): Unit = {
+    currentFile = file
+    set(current)
+  }
+
+  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size: Int = 10): Unit = {
     if (!done) {
       val scale = size / 10.0
       val progress = (value * scale / 10.0).toInt
       val status = value.toInt
-      print("% 4d%% [%s%s] %s of %s at %s/s [%s<%s]       ".format(status, "#" * progress,
+      print(" (%d/%d)% 4d%% [%s%s] %s of %s at %s/s [%s<%s] (%d/%d)      ".format(currentChunk, chunksCount, status, "#" * progress,
         " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
-        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime()))
-      if (status == 100) {
+        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), currentFile, filesCount))
+      if (((currentFile == filesCount) && (currentChunk == chunksCount) && (filesCount > 0) && (chunksCount > 0))) {
         done = true
         println()
       } else

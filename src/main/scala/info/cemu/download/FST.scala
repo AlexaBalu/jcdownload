@@ -3,6 +3,7 @@ package info.cemu.download
 import info.cemu.download.util.IO
 import info.cemu.download.util.Types._
 import java.io.File
+
 import info.cemu.download.util.IO._
 
 case class FST(payload: Array[Byte], tmd: TitleMetaData, tik: TitleTicket,
@@ -11,17 +12,31 @@ case class FST(payload: Array[Byte], tmd: TitleMetaData, tik: TitleTicket,
   if (magicValue() != 0x46535400)
     throw new RuntimeException("Invalid index, control value not matched after decryption")
 
-  def magicValue() = getInt(0)
+  protected def magicValue() = getInt(0)
 
-  def getInfoEntriesCount() = getInt(0x08)
+  protected def getInfoEntriesCount() = getInt(0x08)
 
-  def getEntriesCount() = getInt(0x20 + getInfoEntriesCount() * 0x20 + 8)
+  protected def getEntriesCount() = getInt(0x20 + getInfoEntriesCount() * 0x20 + 8)
 
-  def getEntry(index: Int, fullPath: String = ""): FEntry =
+  protected def getEntry(index: Int, fullPath: String = ""): FEntry =
     FEntry(payload, (0x20 + getInfoEntriesCount() * 0x20) + index * 0x10,
       0x20 + getInfoEntriesCount() * 0x20 + getEntriesCount() * 0x10, this, fullPath)
 
-  def entriesIterator(): Iterator[FEntry] = new Iterator[FEntry] {
+  def sortedEntries() : Iterator[(File, Seq[FEntry])] = {
+    val res : Seq[(Short, Seq[FEntry])] = entriesIterator().toSeq.groupBy{
+      case u =>
+        u.getContentID()
+    }.map {
+      case (contentId : Short, e : Seq[FEntry]) =>
+        (contentId, e.sortBy(_.getFileOffset()).filter(_.isExtractable()))
+    }.toSeq
+    res.sortBy(_._1).map{
+      case(index, entries) =>
+        (resourceToFile(tmd.content(index).filename()), entries )
+    }.filter(!_._2.isEmpty).iterator
+  }
+
+  protected def entriesIterator(): Iterator[FEntry] = new Iterator[FEntry] {
     var i: Int = 1
     val entriesCount: Int = getEntriesCount()
     val entry = Array.ofDim[Int](16)
@@ -73,11 +88,11 @@ object FST {
     encryptedKey
   }
 
-  def apply(tmd: TitleMetaData, tik: TitleTicket)(implicit commonKey: Array[Byte], rootPath: File): FST = {
+  def apply(tmd: TitleMetaData, tik: TitleTicket)(implicit commonKey : Array[Byte], rootPath : File): FST = {
 
     val indexContent = tmd.content(0)
 
-    val file = IO.resourceToFile(indexContent.filenameBase() + ".app")
+    val file = IO.resourceToFile(indexContent.filename())
 
     val encryptedContent = file.readBytes()
 

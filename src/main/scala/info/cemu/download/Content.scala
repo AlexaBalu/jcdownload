@@ -14,4 +14,5 @@ case class Content(payload : Array[Byte], offset : Int) extends Payload(payload,
 
   def filenameBase() = "%08x".format(id())
 
+  def filename() = "%08x.app".format(id())
 }
