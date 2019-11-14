@@ -96,7 +96,7 @@ case class ProgressBar(max: Long) {
       print(" (%d/%d)% 4d%% [%s%s] %s of %s at %s/s [%s<%s] (%d/%d)      ".format(currentChunk, chunksCount, status, "#" * progress,
         " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
         rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), currentFile, filesCount))
-      if (status == 100 || ((currentFile == filesCount) && (currentChunk == chunksCount) && (filesCount > 0) && (chunksCount > 0))) {
+      if (((currentFile == filesCount) && (currentChunk == chunksCount) && (filesCount > 0) && (chunksCount > 0))) {
         done = true
         println()
       } else

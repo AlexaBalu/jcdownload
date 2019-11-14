@@ -59,6 +59,9 @@ object Main {
         var parts: Option[Map[File, Seq[FEntry]]] = None
 
         def processContainer(index: Int, contentFile: File, contentFileDescriptor: RandomAccessFile): Unit = {
+          progressBar.foreach{
+            _.setCurrentChunk(index + 1)
+          }
           if (index == 0) {
             val tik = TitleTicket(IO.resourceToFile("title.tik"))
             val index = FST(titleMetaData, tik)
@@ -94,9 +97,7 @@ object Main {
 
         chunks.zipWithIndex.foreach {
           case (content, index) =>
-            progressBar.foreach{
-              _.setCurrentChunk(index + 1)
-            }
+
             val contentFile = new File(rootDir, s"${content.filenameBase()}.app")
             val contentFileDescriptor = contentFile.randomAccess()
             try {
