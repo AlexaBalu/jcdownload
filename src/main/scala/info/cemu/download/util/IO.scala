@@ -20,7 +20,6 @@ object IO {
 
   implicit class URLExtension(url: URL) {
 
-
     def inputStream(): InputStream =
       new BufferedInputStream(url.openStream())
 
@@ -43,7 +42,7 @@ object IO {
       new FileInputStream(file)
 
     def outputStream(): OutputStream =
-      new BufferedOutputStream(new FileOutputStream(file))
+      new BufferedOutputStream(new FileOutputStream(file), 256 * 1024)
 
     def readBytes(): Array[Byte] = {
       val fis = new FileInputStream(file)
@@ -86,7 +85,7 @@ object IO {
 
   implicit class RandomFileExtension(file: RandomAccessFile) {
 
-    def outputStream(): OutputStream = new OutputStream {
+    def outputStream(): OutputStream = new BufferedOutputStream(new OutputStream {
       override def write(b: Int): Unit = file.writeInt(b)
 
       override def write(b: Array[Byte], off: Int, len: Int): Unit = file.write(b, off, len)
@@ -94,7 +93,7 @@ object IO {
       override def close(): Unit = {
         file.seek(0)
       }
-    }
+    }, 128 * 1024 * 1024)
 
     def download(input: URL)(implicit progressBar: Option[ProgressBar] = None): Boolean =
       downloadContent(input, outputStream())
@@ -193,7 +192,7 @@ object IO {
     }
     var wasFound = false
     try {
-      val stream = input.openStream()
+      val stream = new BufferedInputStream(input.openStream(), 1024 * 1024)
       try {
         wasFound = transfer(stream, tmdOutput) != 0
         wasFound

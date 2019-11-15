@@ -98,13 +98,12 @@ object Main {
           }
         }
 
-        chunks.zipWithIndex.foreach {
-          case (content, index) =>
-
-            val contentFile = new File(rootDir, s"${content.filenameBase()}.app")
+        def tryToDownloadAndUnpack(contentFile: File, content: Content, index: Int, tries: Int): Unit = {
+          val position = progressBar.map(_.get())
+          try {
             val contentFileDescriptor = contentFile.randomAccess()
             try {
-              if (!contentFile.exists() || contentFile.length() != content.size()) {
+              if (!contentFile.exists() || (contentFile.length() != content.size())) {
                 if (!contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size()))
                   throw new RuntimeException(s"""Failed to successfully download "${content.filename()}" container""")
                 processContainer(index, contentFile, contentFileDescriptor, content.size())
@@ -117,6 +116,30 @@ object Main {
             } finally {
               contentFileDescriptor.close()
             }
+          } catch {
+            case e: Exception =>
+              if (tries > 0) {
+                progressBar.foreach {
+                  bar =>
+                    position.foreach { // fall back to old progress
+                      bar.set
+                    }
+                }
+                progressBar.foreach(
+                  _.markFailure()
+                )
+                contentFile.delete() // try again from scratch
+                tryToDownloadAndUnpack(contentFile, content, index, tries - 1)
+              } else {
+                throw e
+              }
+          }
+        }
+
+        chunks.zipWithIndex.foreach {
+          case (content, index) =>
+            val contentFile = new File(rootDir, s"${content.filenameBase()}.app")
+            tryToDownloadAndUnpack(contentFile, content, index, 3)
             try {
               new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
             } catch {
