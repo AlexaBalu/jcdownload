@@ -115,6 +115,8 @@ object IO {
         val alreadyDownloaded = file.length()
         val connection = inputUrl.openConnection.asInstanceOf[HttpURLConnection]
         connection.setRequestProperty("Range", "bytes=" + alreadyDownloaded + "-")
+        connection.setReadTimeout(30 * 1000)
+        connection.setConnectTimeout(30 * 1000)
         connection.setDoInput(true)
         connection.setDoOutput(true)
         file.seek(alreadyDownloaded)
