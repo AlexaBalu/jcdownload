@@ -1,11 +1,13 @@
 package info.cemu.download
 
-import java.io.{File, RandomAccessFile}
+import java.io.{File, IOException, RandomAccessFile}
 import java.net.URL
 
 import info.cemu.download.util.{IO, ProgressBar}
 import info.cemu.download.util.Types._
 import info.cemu.download.util.IO._
+
+import scala.concurrent.TimeoutException
 
 object Main {
 
@@ -119,6 +121,9 @@ object Main {
           } catch {
             case e: Exception =>
               if (tries > 0) {
+                if (!e.isInstanceOf[IOException]) {
+                  contentFile.delete() // try again from scratch
+                }
                 progressBar.foreach {
                   bar =>
                     position.foreach { // fall back to old progress
@@ -128,7 +133,6 @@ object Main {
                 progressBar.foreach(
                   _.markFailure()
                 )
-                contentFile.delete() // try again from scratch
                 tryToDownloadAndUnpack(contentFile, content, index, tries - 1)
               } else {
                 throw e
