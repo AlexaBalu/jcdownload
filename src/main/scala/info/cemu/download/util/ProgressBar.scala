@@ -49,7 +49,7 @@ case class ProgressBar(max: Long) {
 
       val timeDifference = currentTimestamp - lastRatingTimestamp
       val valueDifference = current - lastRatingValue
-      lastRating = (valueDifference.toDouble * 1000.0 / timeDifference.toDouble).toLong
+      lastRating = Math.max(0, (valueDifference.toDouble * 1000.0 / timeDifference.toDouble).toLong)
       lastRatingTimestamp = currentTimestamp
       lastRatingValue = current
 
