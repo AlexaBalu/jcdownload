@@ -22,17 +22,20 @@ case class FST(payload: Array[Byte], tmd: TitleMetaData, tik: TitleTicket,
     FEntry(payload, (0x20 + getInfoEntriesCount() * 0x20) + index * 0x10,
       0x20 + getInfoEntriesCount() * 0x20 + getEntriesCount() * 0x10, this, fullPath)
 
-  def sortedEntries() : Iterator[(File, Seq[FEntry])] = {
-    val res : Seq[(Short, Seq[FEntry])] = entriesIterator().toSeq.groupBy{
+  def sortedEntries(): Iterator[(File, Seq[FEntry])] = {
+    val res: Seq[(Short, Seq[FEntry])] = entriesIterator().toSeq.groupBy {
       case u =>
         u.getContentID()
     }.map {
-      case (contentId : Short, e : Seq[FEntry]) =>
+      case (contentId: Short, e: Seq[FEntry]) =>
         (contentId, e.sortBy(_.getFileOffset()).filter(_.isExtractable()))
     }.toSeq
-    res.sortBy(_._1).map{
-      case(index, entries) =>
-        (resourceToFile(tmd.content(index).filename()), entries )
+    res.sortBy(_._1).map {
+      case (index, entries) =>
+        havingAnyOf(tmd.content(index).filename(), tmd.content(index).filenameBase()) {
+          filename =>
+            (resourceToFile(filename), entries)
+        }
     }.filter(!_._2.isEmpty).iterator
   }
 
@@ -88,11 +91,14 @@ object FST {
     encryptedKey
   }
 
-  def apply(tmd: TitleMetaData, tik: TitleTicket)(implicit commonKey : Array[Byte], rootPath : File): FST = {
+  def apply(tmd: TitleMetaData, tik: TitleTicket)(implicit commonKey: Array[Byte], rootPath: File): FST = {
 
     val indexContent = tmd.content(0)
 
-    val file = IO.resourceToFile(indexContent.filename())
+    val file = havingAnyOf(indexContent.filename(), indexContent.filenameBase()) {
+      filename =>
+        IO.resourceToFile(filename)
+    }
 
     val encryptedContent = file.readBytes()
 

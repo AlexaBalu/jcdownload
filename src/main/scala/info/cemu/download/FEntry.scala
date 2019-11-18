@@ -30,7 +30,13 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFlags(): Short = getShort(0x0C)
 
-  def getContainer(): File = resourceToFile(parent.tmd.content(getContentID()).filenameBase() + ".app")
+  def getContainer(): File = {
+    val filenameBase = parent.tmd.content(getContentID()).filenameBase()
+    havingAnyOf(s"${filenameBase}.app", filenameBase) {
+      filename =>
+        resourceToFile(filename)
+    }
+  }
 
   def getType(): Int = ((getInt(0) & 0xFF000000) >>> 24)
 
@@ -111,7 +117,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
         output.close()
       } else {
-        progress.foreach{
+        progress.foreach {
           _.add(bytesLeftToWrite, true)
         }
       }
@@ -184,7 +190,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
           throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
 
         output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
-        progress.foreach{
+        progress.foreach {
           _.add(WriteSize)
         }
 
@@ -202,7 +208,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
       output.close()
 
     } else {
-      progress.foreach{
+      progress.foreach {
         _.add(Size, true)
       }
     }

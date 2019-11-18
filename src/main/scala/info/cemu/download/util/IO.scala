@@ -273,6 +273,11 @@ object IO {
     out.toByteArray
   }
 
+  def havingAnyOf[T](input : String *)(body : String => T)(implicit rootPath: File) : T =
+    body(input.find( new File(rootPath, _).exists() ).getOrElse(
+      input.last
+    ))
+
   def uncompress(input: Array[Byte]): Array[Byte] = {
     val out = new ByteArrayOutputStream()
     val in = new ByteArrayInputStream(input)

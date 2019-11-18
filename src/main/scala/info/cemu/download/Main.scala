@@ -7,8 +7,6 @@ import info.cemu.download.util.{IO, ProgressBar}
 import info.cemu.download.util.Types._
 import info.cemu.download.util.IO._
 
-import scala.concurrent.TimeoutException
-
 object Main {
 
 
@@ -39,17 +37,26 @@ object Main {
         )
         rootDir.mkdirs()
 
-        new File(rootDir, "title.cert").writeBytes(db.alpha.hb)
+        havingAnyOf("title.cert", "cert") {
+          new File(rootDir, _)
+        }.writeBytes(db.alpha.hb)
 
-        val tmdOutputFile = new File(rootDir, "title.tmd")
+        val tmdOutputFile = havingAnyOf("title.tmd", "tmd") {
+          new File(rootDir, _)
+        }
+
         tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
+        val ticketFile = havingAnyOf("title.tik", "cetk") {
+          new File(rootDir, _)
+        }
+
         if (title.isPatch())
-          new File(rootDir, "title.tik").download(new URL(s"$url/${titleId}/cetk"))
+          ticketFile.download(new URL(s"$url/${titleId}/cetk"))
         else
-          new File(rootDir, "title.tik").writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+          ticketFile.writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
 
         val chunks = titleMetaData.contentIterator().toSeq
 
@@ -67,9 +74,24 @@ object Main {
             _.setCurrentChunk(index + 1)
           }
           if (index == 0) {
-            val tik = TitleTicket(IO.resourceToFile("title.tik"))
+            val tik = havingAnyOf("title.tik", "cetk") {
+              filename =>
+                TitleTicket(IO.resourceToFile(filename))
+            }
             val index = FST(titleMetaData, tik)
             val toExtract = index.sortedEntries().toMap
+
+            /*index.sortedEntries().foreach{
+              case (file, entries) =>
+                println(s"Container ${file.getName}")
+                entries.foreach{
+                  case entry =>
+                    println(s"- %s f:%x t:%x %d %s %d".format(
+                      entry.getFullPath(), entry.getFlags(), entry.getType(), entry.getFileOffset(),
+                      entry.getFileLength().toDisplaySize(), entry.getFileLength()))
+                }
+            }*/
+
             val (cnt, _) = toExtract.toSeq.flatMap(_._2).foldLeft[(Int, Long)]((0, 0L)) {
               case ((cnt: Int, current: Long), right: FEntry) =>
                 (cnt + 1, current + right.getFileLength())
@@ -107,7 +129,7 @@ object Main {
             try {
               if (!contentFile.exists() || (contentFile.length() != content.size())) {
                 if (!contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size()))
-                  throw new RuntimeException(s"""Failed to successfully download "${content.filename()}" container""")
+                  throw new RuntimeException(s"""Failed to successfully download "${content.filenameBase()}" container""")
                 processContainer(index, contentFile, contentFileDescriptor, content.size())
               } else {
                 progressBar.foreach {
@@ -142,7 +164,10 @@ object Main {
 
         chunks.zipWithIndex.foreach {
           case (content, index) =>
-            val contentFile = new File(rootDir, s"${content.filenameBase()}.app")
+            val contentFile =
+              havingAnyOf(s"${content.filenameBase()}.app", content.filenameBase()) {
+                new File(rootDir, _)
+              }
             tryToDownloadAndUnpack(contentFile, content, index, 3)
             try {
               new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
@@ -179,7 +204,13 @@ object Main {
       val value = args(1).trim
       val content = new File(value)
       if (content.isDirectory) {
-        val tik = TitleTicket(IO.resourceToFile("title.tik")(content))
+        implicit val root = getRootFolder().getOrElse(
+          throw new RuntimeException("Failed to determine root directory")
+        )
+        val tik = havingAnyOf("title.tik", "cetk") {
+          filename =>
+            TitleTicket(IO.resourceToFile(filename)(content))
+        }
         tik.encryptedTitleKey()
       } else if (content.isFile()) {
         val tik = TitleTicket(IO.resourceToFile(content.getName)(content.getParentFile))
