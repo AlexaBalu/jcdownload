@@ -186,22 +186,25 @@ case class FEntry(payload: Array[Byte], offset: Int,
         if (Block == 0)
           hash(1) = (hash(1) ^ ContentID).toByte
 
-        if (!java.util.Arrays.equals(hash, H0))
-          throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
+        if (!java.util.Arrays.equals(hash, H0)) {
+          Size = 0
+          println(s"\nWrong H0 hash value, failed to extract ${getFullPath()}")
+          //throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
+        } else {
 
-        output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
-        progress.foreach {
-          _.add(WriteSize)
+          output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
+          progress.foreach {
+            _.add(WriteSize)
+          }
+
+          Size -= WriteSize
+          Wrote += WriteSize
+
+          Block = ((Block + 1) % 16)
+
+          WriteSize = HASH_BLOCK_SIZE
+          initialStoreOffset = 0
         }
-
-
-        Size -= WriteSize
-        Wrote += WriteSize
-
-        Block = ((Block + 1) % 16)
-
-        WriteSize = HASH_BLOCK_SIZE
-        initialStoreOffset = 0
 
       }
 

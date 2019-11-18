@@ -49,7 +49,7 @@ object Main {
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
-        val ticketFile = havingAnyOf("title.tik", "cetk") {
+        val ticketFile = havingAnyOf("title.tik", "ctek", "cetk") {
           new File(rootDir, _)
         }
 
@@ -74,7 +74,7 @@ object Main {
             _.setCurrentChunk(index + 1)
           }
           if (index == 0) {
-            val tik = havingAnyOf("title.tik", "cetk") {
+            val tik = havingAnyOf("title.tik", "ctek", "cetk") {
               filename =>
                 TitleTicket(IO.resourceToFile(filename))
             }
@@ -207,7 +207,7 @@ object Main {
         implicit val root = getRootFolder().getOrElse(
           throw new RuntimeException("Failed to determine root directory")
         )
-        val tik = havingAnyOf("title.tik", "cetk") {
+        val tik = havingAnyOf("title.tik", "ctek", "cetk") {
           filename =>
             TitleTicket(IO.resourceToFile(filename)(content))
         }
