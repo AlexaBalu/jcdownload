@@ -2,9 +2,6 @@ package info.cemu.download.util
 
 import java.nio.ByteBuffer
 
-import javax.xml.bind.DatatypeConverter
-
-
 object Types {
 
   def byteArray(size: Int): Array[Byte] = Array.ofDim[Byte](size)
@@ -12,8 +9,15 @@ object Types {
   def byteArrayOf(elements: Int*): Array[Byte] = elements.map(_.toByte).toArray[Byte]
 
   implicit class StringType(value: String) {
-    def fromHexToBytes(): Array[Byte] =
-      DatatypeConverter.parseHexBinary(value)
+    def fromHexToBytes(): Array[Byte] = {
+      val data = new Array[Byte](value.length / 2)
+      var i = 0
+      while (i < value.length) {
+        data(i / 2) = Integer.decode("0x" + value.charAt(i) + value.charAt(i + 1)).byteValue
+        i += 2
+      }
+      data
+    }
 
     def fromHexToString(): String = new String(value.fromHexToBytes())
 
