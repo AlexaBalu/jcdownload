@@ -1,6 +1,6 @@
 package info.cemu.download
 
-import java.io.{File}
+import java.io.{File, IOException, RandomAccessFile}
 import java.net.URL
 
 import info.cemu.download.util.{ProgressBar}
@@ -51,13 +51,23 @@ object Download {
 
         implicit val progressBar = Some(ProgressBar(max))
 
-        chunks.foreach {
-          case content =>
+        progressBar.foreach{
+          _.setChunksCount(chunks.length)
+        }
+
+        chunks.zipWithIndex.foreach {
+          case (content, index) =>
 
             val outputContentFile = new File(rootDir, s"${content.filenameBase()}.app")
 
+            progressBar.foreach {
+              _.setCurrentChunk(index + 1)
+            }
+
+            val contentFileDescriptor = outputContentFile.randomAccess()
+
             if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
-              outputContentFile.download(new URL(s"$url/${titleId}/${content.filenameBase()}"))
+              contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size())
             } else {
               progressBar.foreach {
                 _.add(content.size(), true)

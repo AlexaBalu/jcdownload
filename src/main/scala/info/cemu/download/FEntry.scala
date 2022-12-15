@@ -1,7 +1,6 @@
 package info.cemu.download
 
-import java.io.{File, RandomAccessFile}
-
+import java.io.{ByteArrayOutputStream, File, RandomAccessFile}
 import javax.crypto.Cipher
 import util.IO._
 import util.Types._
@@ -30,7 +29,13 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFlags(): Short = getShort(0x0C)
 
-  def getContainer(): File = resourceToFile(parent.tmd.content(getContentID()).filenameBase() + ".app")
+  def getContainer(): File = {
+    val filenameBase = parent.tmd.content(getContentID()).filenameBase()
+    havingAnyOf(s"${filenameBase}.app", filenameBase) {
+      filename =>
+        resourceToFile(filename)
+    }
+  }
 
   def getType(): Int = ((getInt(0) & 0xFF000000) >>> 24)
 
@@ -50,13 +55,13 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFileLength(): Long = Integer.toUnsignedLong(getInt(0x08))
 
-  def extractFile(in: RandomAccessFile)(implicit progress: Option[ProgressBar]): Unit = {
+  def extractFile(in: RandomAccessFile, verifyOnly: Boolean = false)(implicit progress: Option[ProgressBar]): Unit = {
 
     if (!isExtractable()) {
       // skip
     }
     else if (isHashed()) {
-      extractHashedFile(in)
+      extractHashedFile(in, verifyOnly)
     }
     else {
 
@@ -65,8 +70,12 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
       if (!outputFilename.exists() || outputFilename.length() != bytesLeftToWrite) {
 
-        outputFilename.makeDirectories()
-        val output = outputFilename.outputStream()
+        val output = if (verifyOnly) {
+          new ByteArrayOutputStream()
+        } else {
+          outputFilename.makeDirectories()
+          outputFilename.outputStream()
+        }
 
         val fileOffset: Long = getFileOffset()
 
@@ -98,7 +107,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
           IV.copy(swapIV, 0, swapIV.length)
 
-          output.write(blockBuffer, initialStoreOffset.toInt, bytesToWrite.toInt)
+          if (!verifyOnly) output.write(blockBuffer, initialStoreOffset.toInt, bytesToWrite.toInt)
           progress.foreach {
             _.add(bytesToWrite)
           }
@@ -109,16 +118,16 @@ case class FEntry(payload: Array[Byte], offset: Int,
           initialStoreOffset = 0
         }
 
-        output.close()
+        if (!verifyOnly) output.close()
       } else {
-        progress.foreach{
+        progress.foreach {
           _.add(bytesLeftToWrite, true)
         }
       }
     }
   }
 
-  protected def extractHashedFile(in: RandomAccessFile)(implicit progress: Option[ProgressBar]): Unit = {
+  protected def extractHashedFile(in: RandomAccessFile, verifyOnly: Boolean = false)(implicit progress: Option[ProgressBar]): Unit = {
 
     val outputFilename = resourceToFile(getFullPath())
 
@@ -130,8 +139,12 @@ case class FEntry(payload: Array[Byte], offset: Int,
       val SHA_DIGEST_LENGTH = 0x14
       val HASHES_BLOCK_SIZE = 0x400
 
-      outputFilename.makeDirectories()
-      val output = outputFilename.outputStream()
+      val output = if (verifyOnly) {
+        new ByteArrayOutputStream()
+      } else {
+        outputFilename.makeDirectories()
+        outputFilename.outputStream()
+      }
 
       val fileOffset: Long = getFileOffset()
 
@@ -180,29 +193,34 @@ case class FEntry(payload: Array[Byte], offset: Int,
         if (Block == 0)
           hash(1) = (hash(1) ^ ContentID).toByte
 
-        if (!java.util.Arrays.equals(hash, H0))
-          throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
+        if (!java.util.Arrays.equals(hash, H0)) {
+          Size = 0
+          println(s"\nWrong H0 hash value, failed to extract ${getFullPath()}")
+          //throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
+        } else {
 
-        output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
-        progress.foreach{
-          _.add(WriteSize)
+          if (!verifyOnly)
+          output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
+          progress.foreach {
+            _.add(WriteSize)
+          }
+
+          Size -= WriteSize
+          Wrote += WriteSize
+
+          Block = ((Block + 1) % 16)
+
+          WriteSize = HASH_BLOCK_SIZE
+          initialStoreOffset = 0
         }
-
-
-        Size -= WriteSize
-        Wrote += WriteSize
-
-        Block = ((Block + 1) % 16)
-
-        WriteSize = HASH_BLOCK_SIZE
-        initialStoreOffset = 0
 
       }
 
+      if (!verifyOnly)
       output.close()
 
     } else {
-      progress.foreach{
+      progress.foreach {
         _.add(Size, true)
       }
     }

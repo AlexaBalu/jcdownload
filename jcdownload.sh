@@ -1,10 +1,14 @@
 #!/bin/bash
 
-echo Title Key or folder of resume: 
+if [[ -z $1 ]]
+then
+	echo Title Key or folder of resume: 
+	read titleKey
+else
+   titleKey=$1
+fi
 
-read titleKey
-
-java -jar jcdownload.jar PUT_HERE_COMMON_KEY "$titleKey"
+java -jar jcdownload.jar d7b00402659ba2abd2cb0db27fa2b656 "$titleKey"
 
 
 read -p "Press [Enter] key to exit..."

@@ -95,7 +95,7 @@ object Types {
       else {
         val exp = (Math.log(value) / Math.log(unit)).toInt
         val pre = (if (si) "kMGTPE" else "KMGTPE").charAt(exp - 1) + (if (si) "" else "i")
-        "%.1f %sB".format(value / Math.pow(unit, exp), pre);
+        "%.2f %sB".format(value / Math.pow(unit, exp), pre);
       }
     }
 
