@@ -1,6 +1,6 @@
 package info.cemu.download
 
-import java.io.{File, IOException, RandomAccessFile}
+import java.io.{File}
 import java.net.URL
 
 import info.cemu.download.util.{ProgressBar}
@@ -12,7 +12,7 @@ object Download {
   def main(args: Array[String]): Unit = {
 
     if (args.length < 2)
-      throw new RuntimeException("java -jar jcdownload.jar <common key> <title key>")
+      throw new RuntimeException("java -cp jcdownload.jar info.cemu.download.Download <common key> <title key>")
 
     val db = Database(args(0).hb)
 
@@ -28,17 +28,24 @@ object Download {
         val rootDir = new File(s"downloads/${title.folder()}")
         rootDir.mkdirs()
 
-        new File(rootDir, "title.cert").writeBytes(db.alpha.hb)
+        val cert = new File(rootDir, "title.cert")
+        if (!cert.exists())
+          cert.writeBytes(db.alpha.hb)
 
         val tmdOutputFile = new File(rootDir, "title.tmd")
-        tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
+        if (!tmdOutputFile.exists())
+          tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
-        if (title.isPatch())
-          new File(rootDir, "title.tik").download(new URL(s"$url/${titleId}/cetk"))
-        else
-          new File(rootDir, "title.tik").writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+        val file = new File(rootDir, "title.tik")
+
+        if (!file.exists()) {
+          if (title.isPatch())
+            file.download(new URL(s"$url/${titleId}/cetk"))
+          else
+            file.writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+        }
 
         val chunks = titleMetaData.contentIterator().toSeq
 
@@ -61,7 +68,10 @@ object Download {
             val outputContentFile = new File(rootDir, s"${content.filenameBase()}.app")
 
             progressBar.foreach {
-              _.setCurrentChunk(index + 1)
+
+              p =>
+                p.setCurrentChunk(index + 1)
+                p.resetFilesCount()
             }
 
             val contentFileDescriptor = outputContentFile.randomAccess()
@@ -75,7 +85,10 @@ object Download {
             }
 
             try {
-              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
+              val h3 = new File(rootDir, content.filenameBase() + ".h3")
+              if (!h3.exists()) {
+                h3.download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
+              }
             } catch {
               case _: Exception =>
             }

@@ -177,10 +177,19 @@ object IO {
 
   }
 
+  def resetBuffer(buffer : Array[Byte]): Unit = {
+    var i = 0;
+    while(i < buffer.length) {
+      buffer(i) = 0
+      i += 1
+    }
+  }
+
   protected def transfer(input: InputStream, output: OutputStream)(implicit progressBar: Option[ProgressBar] = None): Long = {
     var readSize: Int = 0
     var total: Long = 0
     while ( {
+      resetBuffer(buffer)
       readSize = input.read(buffer, 0, buffer.length);
       readSize > -1
     }) {

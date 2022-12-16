@@ -37,15 +37,25 @@ object Main {
         )
         rootDir.mkdirs()
 
-        havingAnyOf("title.cert", "cert") {
+        val certFile = havingAnyOf("title.cert", "cert") {
           new File(rootDir, _)
-        }.writeBytes(db.alpha.hb)
+        }
+        if (!certFile.exists()) {
+//          println("Creating cert")
+          certFile.writeBytes(db.alpha.hb)
+        }
+//        else {
+//          println("Reusing existing cert")
+//        }
 
         val tmdOutputFile = havingAnyOf("title.tmd", "tmd") {
           new File(rootDir, _)
         }
 
-        tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
+//        println("Downloading tmd")
+        if (!tmdOutputFile.exists()) {
+          tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
+        }
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
@@ -53,10 +63,19 @@ object Main {
           new File(rootDir, _)
         }
 
-        if (title.isPatch())
-          ticketFile.download(new URL(s"$url/${titleId}/cetk"))
-        else
-          ticketFile.writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+        if (!ticketFile.exists()) {
+
+          if (title.isPatch()) {
+//            println("Downloading tik")
+            ticketFile.download(new URL(s"$url/${titleId}/cetk"))
+          } else {
+//            println("Generating tik")
+            ticketFile.writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+          }
+        }
+//        else {
+//          println("Reusing existing tik")
+//        }
 
         val chunks = titleMetaData.contentIterator().toSeq
 
@@ -65,13 +84,15 @@ object Main {
             size + content.size()
         }
 
-        println(s"""Downloading ${chunks.size} chunks of ${max.toDisplaySize()} into "${rootDir.getCanonicalPath}"""")
+        println(s"""Downloading ${max.toDisplaySize()} into "${rootDir.getCanonicalPath}"""")
 
         var parts: Option[Map[File, Seq[FEntry]]] = None
 
         def processContainer(index: Int, contentFile: File, contentFileDescriptor: RandomAccessFile, contentSize: Long): Unit = {
           progressBar.foreach {
-            _.setCurrentChunk(index + 1)
+            p =>
+              p.setCurrentChunk(index + 1)
+              p.resetFilesCount()
           }
           if (index == 0) {
             val tik = havingAnyOf("title.tik", "ctek", "cetk") {
@@ -96,7 +117,7 @@ object Main {
               case ((cnt: Int, current: Long), right: FEntry) =>
                 (cnt + 1, current + right.getFileLength())
             }
-            println(s"""Verifying by decryption ${cnt} files during that process""")
+            println(s"""Verifying by decryption of ${cnt} files during that process""")
             val pb = ProgressBar(max)
             pb.setChunksCount(chunks.length)
             pb.add(contentSize)
@@ -112,7 +133,7 @@ object Main {
                     }
                     entries.zipWithIndex.foreach {
                       case (entry, index) =>
-                        entry.extractFile(contentFileDescriptor, true)(None)
+                        entry.extractFile(contentFileDescriptor, contentFile, true)(None)
                         progressBar.foreach {
                           _.setCurrentFile(index + 1)
                         }
@@ -170,7 +191,10 @@ object Main {
               }
             tryToDownloadAndUnpack(contentFile, content, index, 3)
             try {
-              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
+              val hashFile = new File(rootDir, content.filenameBase() + ".h3")
+              if (!hashFile.exists()) {
+                hashFile.download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
+              }
             } catch {
               case _: Exception =>
             }

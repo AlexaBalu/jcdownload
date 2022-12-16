@@ -55,13 +55,16 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
   def getFileLength(): Long = Integer.toUnsignedLong(getInt(0x08))
 
-  def extractFile(in: RandomAccessFile, verifyOnly: Boolean = false)(implicit progress: Option[ProgressBar]): Unit = {
+  def extractFile(in: RandomAccessFile, file: File, verifyOnly: Boolean = false)(implicit progress: Option[ProgressBar]): Unit = {
 
     if (!isExtractable()) {
       // skip
+      progress.foreach{
+        _.add(getFileLength())
+      }
     }
     else if (isHashed()) {
-      extractHashedFile(in, verifyOnly)
+      extractHashedFile(in, file, verifyOnly)
     }
     else {
 
@@ -79,12 +82,12 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
         val fileOffset: Long = getFileOffset()
 
-        val alignedReadOffset: Long = (fileOffset / BLOCK_SIZE) * BLOCK_SIZE
+        val alignedReadOffset: Long = fileOffset / BLOCK_SIZE * BLOCK_SIZE
         var initialStoreOffset: Long = fileOffset - alignedReadOffset
 
         val IV = byteArray(16)
         val swapIV = byteArray(16)
-        IV(0) = ((getContentID() >> 8) & 0xFF).toByte
+//        IV(0) = ((getContentID() >> 8) & 0xFF).toByte
         IV(1) = getContentID().toByte
 
         var bytesToWrite: Long = BLOCK_SIZE
@@ -114,8 +117,10 @@ case class FEntry(payload: Array[Byte], offset: Int,
 
           bytesLeftToWrite -= bytesToWrite
 
-          bytesToWrite = BLOCK_SIZE
-          initialStoreOffset = 0
+          if (initialStoreOffset != 0) {
+            bytesToWrite = BLOCK_SIZE
+            initialStoreOffset = 0
+          }
         }
 
         if (!verifyOnly) output.close()
@@ -127,7 +132,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
     }
   }
 
-  protected def extractHashedFile(in: RandomAccessFile, verifyOnly: Boolean = false)(implicit progress: Option[ProgressBar]): Unit = {
+  protected def extractHashedFile(in: RandomAccessFile, file: File, verifyOnly: Boolean = false)(implicit progress: Option[ProgressBar]): Unit = {
 
     val outputFilename = resourceToFile(getFullPath())
 
@@ -175,7 +180,7 @@ case class FEntry(payload: Array[Byte], offset: Int,
         in.readBytesFully(hashedBuffer, 0, HASHED_BLOCK_SIZE)
 
         IV.fill(0)
-        IV(0) = ((ContentID >> 8) & 0xFF).toByte
+       // IV(0) = ((ContentID >> 8) & 0xFF).toByte
         IV(1) = ContentID.toByte
 
         encrypt(hashedBuffer, 0, HASHES_BLOCK_SIZE, Hashes, 0, parent.decryptedKey, IV, Cipher.DECRYPT_MODE)
@@ -194,10 +199,13 @@ case class FEntry(payload: Array[Byte], offset: Int,
           hash(1) = (hash(1) ^ ContentID).toByte
 
         if (!java.util.Arrays.equals(hash, H0)) {
-          Size = 0
-          println(s"\nWrong H0 hash value, failed to extract ${getFullPath()}")
-          //throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()}")
-        } else {
+//          progress.foreach {
+//            _.setFailure()
+//          }
+//          println(s"\nWrong H0 hash value, failed to extract ${getFullPath()} of ${file.getName}")
+          throw new RuntimeException(s"Wrong H0 hash value, failed to extract ${getFullPath()} of ${file.getName}")
+        }
+        else {
 
           if (!verifyOnly)
           output.write(hashedBuffer, initialStoreOffset.toInt, WriteSize.toInt)
@@ -208,10 +216,15 @@ case class FEntry(payload: Array[Byte], offset: Int,
           Size -= WriteSize
           Wrote += WriteSize
 
-          Block = ((Block + 1) % 16)
+          Block += 1
+          if (Block >= 16)
+            Block = 0
+//          Block = ((Block + 1) % 16)
 
-          WriteSize = HASH_BLOCK_SIZE
-          initialStoreOffset = 0
+          if (initialStoreOffset != 0) {
+            WriteSize = HASH_BLOCK_SIZE
+            initialStoreOffset = 0
+          }
         }
 
       }

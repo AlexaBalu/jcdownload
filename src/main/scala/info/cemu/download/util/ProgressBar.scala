@@ -80,6 +80,10 @@ case class ProgressBar(max: Long) {
 
   def setCurrentChunk(chunk: Long): Unit = {
     currentChunk = chunk
+    set(current)
+  }
+
+  def resetFilesCount() : Unit = {
     filesCount = 0
     currentFile = 0
     set(current)
@@ -111,7 +115,6 @@ case class ProgressBar(max: Long) {
         rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), if (filesCount > 0) "(%d/%d) ".format(currentFile, filesCount) else " " * 9, "*" * failures))
       if (((filesCount == 0 || currentFile == filesCount) && (currentChunk == chunksCount) && (chunksCount > 0))) {
         done = true
-        println()
         println()
       } else
         print("\r")
