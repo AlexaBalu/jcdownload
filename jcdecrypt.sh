@@ -11,13 +11,13 @@ fi
 
 if [ -z $1 ]
 then
-	echo Title key or folder of resume: 
+	echo Folder for decryption:
 	read titleKey
 else
    titleKey=$1
 fi
 
-java -jar jcdownload.jar $commonKey "$titleKey"
+java -cp jcdownload.jar info.cemu.download.Decrypt $commonKey "$titleKey"
 
 
 read -p "Press [Enter] key to exit..."
