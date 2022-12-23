@@ -141,7 +141,7 @@ object IO {
           connection.disconnect()
         }
 
-        if (totalDownloaded == expected || tries < 0) {
+        if (totalDownloaded >= expected || tries < 0) {
           totalDownloaded
         } else {
           recursive(tries - 1)
@@ -154,7 +154,7 @@ object IO {
         _.add(expected - totalDownloaded, false)
       }
 
-      totalDownloaded == expected
+      totalDownloaded >= expected
     }
 
 

@@ -76,7 +76,7 @@ object Download {
 
             val contentFileDescriptor = outputContentFile.randomAccess()
 
-            if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
+            if (!outputContentFile.exists() || outputContentFile.length() < content.size()) {
               contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size())
             } else {
               progressBar.foreach {
