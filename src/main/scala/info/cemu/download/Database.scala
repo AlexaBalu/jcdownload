@@ -23,12 +23,12 @@ case class Title(titleID: String, titleHash: String, name: String, region: Strin
 
   def folder() : File = {
     val stripUnsafe = safeName().replaceAll("&", " and ").replaceAll("\\+", " plus").replaceAll("[^a-z^A-Z^0-9^\\s^-^_]+", "").replaceAll("\\s+", " ").trim
-    val folderName = "[" + safeRegion() + "] " + (
-      if (isPatch()) "(PATCH) "
-      else if (isDLC()) "(DLC) "
-      else if (isDemo()) "(DEMO) "
+    val folderName = "[" + safeRegion() + "] " + (if (stripUnsafe.length <= 3) titleID else stripUnsafe) + (
+      if (isPatch()) " (PATCH)"
+      else if (isDLC()) " (DLC)"
+      else if (isDemo()) " (DEMO)"
       else ""
-    ) + (if (stripUnsafe.length <= 3) titleID else stripUnsafe)
+      )
     new File(folderName)
   }
 }
