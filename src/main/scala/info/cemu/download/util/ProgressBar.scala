@@ -105,19 +105,18 @@ case class ProgressBar(max: Long) {
       throw new RuntimeException("Too many failures, giving up! Try another time")
   }
 
-  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size: Int = 10): Unit = {
+  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size: Int = 8): Unit = {
     if (!done) {
       val scale = size / 10.0
       val progress = (value * scale / 10.0).toInt
       val status = value.toInt
-      print(" (%d/%d)% 4d%% [%s%s] %s of %s at %s/s [%s<%s] %s%s     ".format(currentChunk, chunksCount, status, "#" * progress,
+      print(" %d/%d% 4d%% %s%s %s/%s at %s/s [%s<%s] %s%s\r".format(currentChunk, chunksCount, status, "#" * progress,
         " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
-        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), if (filesCount > 0) "(%d/%d) ".format(currentFile, filesCount) else " " * 9, "*" * failures))
+        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), if (filesCount > 0) "%d/%d ".format(currentFile, filesCount) else " " * 9, if (failures != 0) "*" else ""))
       if (((filesCount == 0 || currentFile == filesCount) && (currentChunk == chunksCount) && (chunksCount > 0))) {
         done = true
-        println()
-      } else
-        print("\r")
+        print("\n")
+      }
     }
   }
 
