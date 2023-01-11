@@ -19,11 +19,25 @@ case class Title(titleID: String, titleHash: String, name: String, region: Strin
 
   private def safeName() : String = if (name != null) name else titleID
 
-  private def safeRegion() : String = if (region != null) region else "UNKNOWN"
+  private def safeRegion() : String = if (region != null) region else "WORLD"
+
+  def capitalize(name: String): String = {
+    val skip = Set("II", "3D", "2K13", "NBA", "LEGO", "NES", "HD", "III", "IV", "VI", "VII", "VIII",
+      "IX", "XI", "XII", "XIII", "NEO", "at", "of", "the", "vs", "and", "or", "plus", "a",
+      "to", "for", "in", "LEGO", "NFL", "amiibo")
+    name.split("\\s+").map {
+      token =>
+        if (skip.contains(token))
+          token
+        else
+          token.head.toUpper + token.tail.mkString.toLowerCase
+
+    }.mkString(" ")
+  }
 
   def folder() : File = {
     val stripUnsafe = safeName().replaceAll("&", " and ").replaceAll("\\+", " plus").replaceAll("[^a-z^A-Z^0-9^\\s^-^_]+", "").replaceAll("\\s+", " ").trim
-    val folderName = "[" + safeRegion() + "] " + (if (stripUnsafe.length <= 3) titleID else stripUnsafe) + (
+    val folderName = capitalize(if (stripUnsafe.length <= 3) titleID else stripUnsafe) + " (" + safeRegion().head + ")" + (
       if (isPatch()) " (PATCH)"
       else if (isDLC()) " (DLC)"
       else if (isDemo()) " (DEMO)"
