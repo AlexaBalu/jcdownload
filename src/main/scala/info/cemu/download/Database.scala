@@ -11,29 +11,42 @@ import scala.jdk.CollectionConverters._
 
 case class Title(titleID: String, titleHash: String, name: String, region: String, ticket: Boolean) {
 
-  def isPatch() : Boolean = titleID.charAt(7) == 'e'
+  def isPatch(): Boolean = titleID.charAt(7) == 'e'
 
-  def isDLC() : Boolean = titleID.charAt(7) == 'c'
+  def isDLC(): Boolean = titleID.charAt(7) == 'c'
 
-  def isDemo() : Boolean = titleID.charAt(7) == '2'
+  def isDemo(): Boolean = titleID.charAt(7) == '2'
 
-  private def safeName() : String = if (name != null) name else titleID
+  private def safeName(): String = if (name != null) name else titleID
 
-  private def safeRegion() : String = if (region != null) region else "UNKNOWN"
+  private def safeRegion(): String = if (region != null) region else "WORLD"
 
-  def folder() : File = {
+  def capitalize(name: String): String = {
+    val skip = Set("II", "3D", "2K13", "NBA", "LEGO", "NES", "HD", "III", "IV", "NEO", "at", "DS", "WATCH_DOGS",
+      "of", "the", "vs", "and", "or", "plus", "a", "to", "for", "in", "LEGO", "NFL", "amiibo")
+    name.split("\\s+").map {
+      token =>
+        if (skip.contains(token))
+          token
+        else
+          token.head.toUpper + token.tail.mkString.toLowerCase
+
+    }.mkString(" ")
+  }
+
+  def folder(): File = {
     val stripUnsafe = safeName().replaceAll("&", " and ").replaceAll("\\+", " plus").replaceAll("[^a-z^A-Z^0-9^\\s^-^_]+", "").replaceAll("\\s+", " ").trim
-    val folderName = "[" + safeRegion() + "] " + (
-      if (isPatch()) "(PATCH) "
-      else if (isDLC()) "(DLC) "
-      else if (isDemo()) "(DEMO) "
+    val folderName = capitalize(if (stripUnsafe.length <= 3) titleID else stripUnsafe) + " (" + safeRegion().head + ")" + (
+      if (isPatch()) " (PATCH)"
+      else if (isDLC()) " (DLC)"
+      else if (isDemo()) " (DEMO)"
       else ""
-    ) + (if (stripUnsafe.length <= 3) titleID else stripUnsafe)
+      )
     new File(folderName)
   }
 }
 
-case class Database(alpha: String, beta: String, gamma : String, index: java.util.List[Title]) {
+case class Database(alpha: String, beta: String, gamma: String, index: java.util.List[Title]) {
 
   def findTitle(key: Array[Byte]): Option[Title] = {
     val filter = IO.SHA256(key).bh

@@ -12,7 +12,7 @@ object Download {
   def main(args: Array[String]): Unit = {
 
     if (args.length < 2)
-      throw new RuntimeException("java -jar jcdownload.jar <common key> <title key>")
+      throw new RuntimeException("java -cp jcdownload.jar info.cemu.download.Download <common key> <title key>")
 
     val db = Database(args(0).hb)
 
@@ -28,17 +28,24 @@ object Download {
         val rootDir = new File(s"downloads/${title.folder()}")
         rootDir.mkdirs()
 
-        new File(rootDir, "title.cert").writeBytes(db.alpha.hb)
+        val cert = new File(rootDir, "title.cert")
+        if (!cert.exists())
+          cert.writeBytes(db.alpha.hb)
 
         val tmdOutputFile = new File(rootDir, "title.tmd")
-        tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
+        if (!tmdOutputFile.exists())
+          tmdOutputFile.download(new URL(s"$url/${titleId}/tmd"))
 
         val titleMetaData = TitleMetaData(tmdOutputFile.readBytes())
 
-        if (title.isPatch())
-          new File(rootDir, "title.tik").download(new URL(s"$url/${titleId}/cetk"))
-        else
-          new File(rootDir, "title.tik").writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+        val file = new File(rootDir, "title.tik")
+
+        if (!file.exists()) {
+          if (title.isPatch())
+            file.download(new URL(s"$url/${titleId}/cetk"))
+          else
+            file.writeBytes(TitleTicket.create(titleKey, db.beta.hb, titleMetaData).payload)
+        }
 
         val chunks = titleMetaData.contentIterator().toSeq
 
@@ -51,13 +58,26 @@ object Download {
 
         implicit val progressBar = Some(ProgressBar(max))
 
-        chunks.foreach {
-          case content =>
+        progressBar.foreach{
+          _.setChunksCount(chunks.length)
+        }
+
+        chunks.zipWithIndex.foreach {
+          case (content, index) =>
 
             val outputContentFile = new File(rootDir, s"${content.filenameBase()}.app")
 
-            if (!outputContentFile.exists() || outputContentFile.length() != content.size()) {
-              outputContentFile.download(new URL(s"$url/${titleId}/${content.filenameBase()}"))
+            progressBar.foreach {
+
+              p =>
+                p.setCurrentChunk(index + 1)
+                p.resetFilesCount()
+            }
+
+            val contentFileDescriptor = outputContentFile.randomAccess()
+
+            if (!outputContentFile.exists() || outputContentFile.length() < content.size()) {
+              contentFileDescriptor.resume(new URL(s"$url/${titleId}/${content.filenameBase()}"), content.size())
             } else {
               progressBar.foreach {
                 _.add(content.size(), true)
@@ -65,7 +85,10 @@ object Download {
             }
 
             try {
-              new File(rootDir, content.filenameBase() + ".h3").download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
+              val h3 = new File(rootDir, content.filenameBase() + ".h3")
+              if (!h3.exists()) {
+                h3.download(new URL(s"$url/${titleId}/${content.filenameBase()}.h3"))(None)
+              }
             } catch {
               case _: Exception =>
             }

@@ -21,6 +21,7 @@ case class ProgressBar(max: Long) {
   var resetEstimation = false
   var estimationStart: Long = 0
   var currentAlreadyDownloaded: Long = 0
+  var failures : Int = 0
 
   def get(): Long = current
 
@@ -48,7 +49,7 @@ case class ProgressBar(max: Long) {
 
       val timeDifference = currentTimestamp - lastRatingTimestamp
       val valueDifference = current - lastRatingValue
-      lastRating = (valueDifference.toDouble * 1000.0 / timeDifference.toDouble).toLong
+      lastRating = Math.max(0, (valueDifference.toDouble * 1000.0 / timeDifference.toDouble).toLong)
       lastRatingTimestamp = currentTimestamp
       lastRatingValue = current
 
@@ -79,6 +80,10 @@ case class ProgressBar(max: Long) {
 
   def setCurrentChunk(chunk: Long): Unit = {
     currentChunk = chunk
+    set(current)
+  }
+
+  def resetFilesCount() : Unit = {
     filesCount = 0
     currentFile = 0
     set(current)
@@ -94,19 +99,24 @@ case class ProgressBar(max: Long) {
     set(current)
   }
 
-  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size: Int = 10): Unit = {
+  def markFailure() : Unit = {
+    failures += 1
+    if (failures > 5)
+      throw new RuntimeException("Too many failures, giving up! Try another time")
+  }
+
+  protected def set(value: Double, current: Long, max: Long, rate: Long, passed: Long, estimatedFinish: Long, size: Int = 8): Unit = {
     if (!done) {
       val scale = size / 10.0
       val progress = (value * scale / 10.0).toInt
       val status = value.toInt
-      print(" (%d/%d)% 4d%% [%s%s] %s of %s at %s/s [%s<%s] (%d/%d)      ".format(currentChunk, chunksCount, status, "#" * progress,
+      print(" %d/%d% 4d%% %s%s %s/%s at %s/s [%s<%s] %s%s\r".format(currentChunk, chunksCount, status, "#" * progress,
         " " * ((scale * 10.0).toInt - progress), current.toDisplaySize(), max.toDisplaySize(),
-        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), currentFile, filesCount))
-      if (((currentFile == filesCount) && (currentChunk == chunksCount) && (filesCount > 0) && (chunksCount > 0))) {
+        rate.toDisplaySize(), passed.toDisplayTime(), estimatedFinish.toDisplayTime(), if (filesCount > 0) "%d/%d ".format(currentFile, filesCount) else " " * 9, if (failures != 0) "*" else ""))
+      if (((filesCount == 0 || currentFile == filesCount) && (currentChunk == chunksCount) && (chunksCount > 0))) {
         done = true
-        println()
-      } else
-        print("\r")
+        print("\n")
+      }
     }
   }
 

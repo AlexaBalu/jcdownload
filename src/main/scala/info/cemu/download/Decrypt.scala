@@ -10,7 +10,7 @@ object Decrypt {
   def main(args: Array[String]): Unit = {
 
     if (args.length < 2)
-      throw new RuntimeException("java -jar jcdecrypt.jar <common key> <content path>")
+      throw new RuntimeException("java -cp jcdownload.jar info.cemu.download.Decrypt <common key> <content path>")
 
     implicit val rootPath = new File(args(1))
     implicit val commonKey = args(0).fromHexToBytes()
@@ -28,17 +28,31 @@ object Decrypt {
         (cnt + 1, current + right.getFileLength())
     }
 
-    println(s"""Extracting ${cnt} files""")
-
     implicit val progress = Some(ProgressBar(max))
+    progress.foreach{
+      _.setChunksCount(parts.size)
+    }
 
-    parts.foreach{
-      case (file, entries) =>
+    progress.foreach{
+      _.setFilesCount(cnt)
+    }
+
+    var i = 0
+    parts.zipWithIndex.foreach{
+      case ((file, entries), index) =>
+        progress.foreach{
+          _.setCurrentChunk(index + 1)
+        }
         val input = file.randomAccess()
+
         try {
           entries.foreach {
             case entry =>
-              entry.extractFile(input)
+              entry.extractFile(input, file)
+              i += 1
+              progress.foreach{
+                _.setCurrentFile(i)
+              }
           }
         } finally {
           input.close()
